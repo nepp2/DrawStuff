@@ -98,12 +98,12 @@ public class ShaderAnalyze {
             switch (type.ToDisplayString()) {
                 case "System.Single" or "float": return ValType.Float;
                 case "System.UInt32": return ValType.UInt32;
-                case "DrawStuff.ShaderLang.Vec2": return ValType.Vec2;
-                case "DrawStuff.ShaderLang.Vec3": return ValType.Vec3;
-                case "DrawStuff.ShaderLang.Vec4": return ValType.Vec4;
-                case "DrawStuff.ShaderLang.Mat4": return ValType.Mat4;
-                case "DrawStuff.ShaderLang.RGBA": return ValType.RGBA;
-                case "DrawStuff.ShaderLang.VertexPos": return ValType.VertexPos;
+                case "DrawStuff.ShaderLanguage.Vec2": return ValType.Vec2;
+                case "DrawStuff.ShaderLanguage.Vec3": return ValType.Vec3;
+                case "DrawStuff.ShaderLanguage.Vec4": return ValType.Vec4;
+                case "DrawStuff.ShaderLanguage.Mat4": return ValType.Mat4;
+                case "DrawStuff.ShaderLanguage.RGBA": return ValType.RGBA;
+                case "DrawStuff.ShaderLanguage.VertexPos": return ValType.VertexPos;
                 default: break;
             };
         }

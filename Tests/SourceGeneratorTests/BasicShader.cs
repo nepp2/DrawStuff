@@ -1,5 +1,5 @@
 ﻿
-using static DrawStuff.ShaderLang;
+using static DrawStuff.ShaderLanguage;
 
 public static partial class BasicShader {
 

@@ -20,8 +20,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Runtime\Runtime.csproj" />
-    <ProjectReference Include="..\..\SourceGenerator\SourceGenerator.csproj" />
+    <ProjectReference Include="..\..\Runtime\DrawStuff.Runtime.csproj" />
+    <ProjectReference Include="..\..\SourceGenerator\DrawStuff.SourceGenerator.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Silk.NET.OpenGL" Version="2.17.1" />
   </ItemGroup>
 
 </Project>

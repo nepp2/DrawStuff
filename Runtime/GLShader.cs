@@ -1,7 +1,6 @@
 ﻿
 using Silk.NET.Maths;
 using Silk.NET.OpenGL;
-using System.Numerics;
 using System.Text.RegularExpressions;
 
 namespace DrawStuff;
@@ -61,6 +60,10 @@ public class ShaderInfo {
             .ToArray();
         return new(attributes, uniforms);
     }
+}
+
+public class UniformNotFoundException : Exception {
+    public UniformNotFoundException(string name) : base($"Uniform '{name}' was not found") { }
 }
 
 public class GLShader : IDisposable {
@@ -124,12 +127,20 @@ public class GLShader : IDisposable {
         gl.UseProgram(Handle);
     }
 
+    public unsafe void SetUniform(string name, ShaderLanguage.Mat4 value) {
+        SetUniformMatrix(name, (float*)&value);
+    }
+
     public unsafe void SetUniform(string name, Matrix4X4<float> value) {
+        SetUniformMatrix(name, (float*)&value);
+    }
+
+    private unsafe void SetUniformMatrix(string name, float* value) {
         int location = gl.GetUniformLocation(Handle, name);
         if (location == -1) {
-            throw new Exception($"{name} uniform not found on shader.");
+            throw new UniformNotFoundException(name);
         }
-        gl.UniformMatrix4(location, 1, false, (float*)&value);
+        gl.UniformMatrix4(location, 1, false, value);
     }
 
     public unsafe void BindStorageBuffer<T>(int index, GLBufferObject<T> buffer)

@@ -5,6 +5,9 @@ using System.Runtime.InteropServices;
 
 namespace DrawStuff;
 
+[StructLayout(LayoutKind.Sequential)]
+public record struct TriangleIndices(uint A, uint B, uint C);
+
 public record struct GLAttribPtrType(VertexAttribPointerType Type, int ByteSize) {
     public static GLAttribPtrType Float32 => new(VertexAttribPointerType.Float, 4);
     public static GLAttribPtrType Uint32 => new(VertexAttribPointerType.UnsignedInt, 4);
@@ -71,6 +74,11 @@ public static class GLVertexArray {
         GL gl, GLBufferObject<VBO> vbo, GLBufferObject<EBO> ebo)
         where VBO : unmanaged where EBO : unmanaged
             => new(gl, vbo, ebo);
+
+    public static GLTriangleArray<VBO> Create<VBO>(
+        GL gl, GLBufferObject<VBO> vbo)
+        where VBO : unmanaged
+            => new(gl, vbo, new (gl, BufferTargetARB.ElementArrayBuffer));
 }
 
 public class GLVertexArray<VBO, EBO> : IDisposable where VBO : unmanaged where EBO : unmanaged {
@@ -133,5 +141,11 @@ public class GLVertexArray<VBO, EBO> : IDisposable where VBO : unmanaged where E
         gl.DeleteVertexArray(Handle);
         Vbo.Dispose();
         Ebo.Dispose();
+    }
+}
+
+public class GLTriangleArray<VBO> : GLVertexArray<VBO, TriangleIndices> where VBO : unmanaged {
+    public GLTriangleArray(GL gl, GLBufferObject<VBO> vbo, GLBufferObject<TriangleIndices> ebo) : base(gl, vbo, ebo) {
+
     }
 }

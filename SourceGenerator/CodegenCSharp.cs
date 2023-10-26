@@ -9,9 +9,11 @@ namespace ShaderCompiler;
 struct SourceNode {
     private object Obj;
     public static implicit operator SourceNode(string s) => new SourceNode() { Obj = s };
+    public static implicit operator SourceNode(string[] l) => new SourceNode() { Obj = l };
     public static implicit operator SourceNode(SourceTree t) => new SourceNode() { Obj = t };
 
     public string? TryString() => Obj as string;
+    public string[]? TryStringArray() => Obj as string[];
     public SourceTree? TryTree() => Obj as SourceTree;
 }
 
@@ -27,6 +29,12 @@ class SourceTree {
             if (n.TryString() is string line) {
                 for (int i = 0; i < indent; ++i) sb.Append("    ");
                 sb.AppendLine(line);
+            }
+            else if (n.TryStringArray() is string[] lines) {
+                foreach (var l in lines) {
+                    for (int i = 0; i < indent; ++i) sb.Append("    ");
+                    sb.AppendLine(l);
+                }
             }
             else if (n.TryTree() is SourceTree t) {
                 t.Write(sb, indent + t.Indent);
@@ -55,52 +63,55 @@ public class CodegenCSharp {
     };
 
 
-    private static string GenerateConstructor(string className, IEnumerable<ArgumentInfo> args) {
+    private static string[] GenerateConstructor(string className, IEnumerable<ArgumentInfo> args) {
+        var code = new List<string>();
         if (args.Any()) {
             string argDefs = string.Join(", ", args.Select(a => $"{ToCSharpType(a.Type)} {a.Name}"));
             string assignments = string.Join(" ", args.Select(a => $"this.{a.Name} = {a.Name};"));
-            return $"public {className}({argDefs}) {{ {assignments} }}";
+            code.Add($"public {className}({argDefs}) {{ {assignments} }}");
         }
-        return "";
+        if (args.Count() == 1) {
+            code.Add($"public static implicit operator {className}({ToCSharpType(args.First().Type)} v) => new(v);");
+        }
+        return code.ToArray();
     }
 
     private static string ToFieldDef(ArgumentInfo arg) =>
         $"public {ToCSharpType(arg.Type)} {arg.Name};";
 
-    private static SourceTree VertexInputStruct(ShaderAnalyze info) {
-        return new SourceTree(
-            @"[StructLayout(LayoutKind.Sequential)]",
-            @"public struct VertexInputs {",
-            new SourceTree(info.Vertex.Inputs.Select(ToFieldDef)),
-            new SourceTree(
-                "",
-                GenerateConstructor("VertexInputs", info.Vertex.Inputs)),
-            @"}"
-        );
-    }
-
-    private static SourceTree StaticVarsStruct(ShaderAnalyze info) {
-        return new SourceTree(
-            @"[StructLayout(LayoutKind.Sequential)]",
-            @"public struct StaticVars {",
-            new SourceTree(info.Globals.Select(ToFieldDef)),
-            new SourceTree(
-                "",
-                GenerateConstructor("StaticVars", info.Globals)),
-            @"}"
-        );
-    }
     public static CodegenOutput GenerateClassExtension(ShaderAnalyze info, SemanticModel model) {
         var vertexSrc = CodegenGLSL.Compile(model, CompileMode.VertexEntryPoint, info.Vertex, info.Globals);
         var fragmentSrc = CodegenGLSL.Compile(model, CompileMode.FragmentEntryPoint, info.Fragment, info.Globals);
         var source = new SourceTree(
             $"public static partial class {info.Sym.Name} {{",
-            $"    public const string VertexSource = @\"[[VERTEX_SRC]]\";",
-            $"    public const string FragmentSource = @\"[[FRAGMENT_SRC]]\";",
-            @"",
-            VertexInputStruct(info),
-            @"",
-            StaticVarsStruct(info),
+            new SourceTree(
+                $"public const string VertexSource = @\"[[VERTEX_SRC]]\";",
+                $"public const string FragmentSource = @\"[[FRAGMENT_SRC]]\";",
+                @"",
+                @"[StructLayout(LayoutKind.Sequential)]",
+                @"public struct VertexData {",
+                new SourceTree(
+                    info.Vertex.Inputs.Select(ToFieldDef).ToArray(),
+                    "",
+                    GenerateConstructor("VertexData", info.Vertex.Inputs)
+                ),
+                @"}",
+                @"",
+                @"public struct Vars {",
+                new SourceTree(
+                    info.Globals.Select(ToFieldDef).ToArray(),
+                    "",
+                    GenerateConstructor("Vars", info.Globals)
+                ),
+                @"}",
+                @"",
+                @"public static void SetShaderVars(GLShader shader, in Vars v) {",
+                    new SourceTree(info.Globals.Select(g => $"shader.SetUniform(\"{g.Name}\", v.{g.Name});")),
+                @"}",
+                @"",
+                @"public static RenderConfig<VertexData, Vars> PipelineConfig =>",
+                @"    new(VertexSource, FragmentSource, SetShaderVars);"
+            ),
             @"}"
         );
         var ns = info.Sym.ContainingNamespace;
@@ -113,7 +124,9 @@ public class CodegenCSharp {
         }
         var sb = new StringBuilder();
         sb.AppendLine("using System.Runtime.InteropServices;");
-        sb.AppendLine("using static DrawStuff.ShaderLang;");
+        sb.AppendLine("using Silk.NET.OpenGL;");
+        sb.AppendLine("using DrawStuff;");
+        sb.AppendLine("using static DrawStuff.ShaderLanguage;");
         sb.AppendLine("");
         source.Write(sb);
 

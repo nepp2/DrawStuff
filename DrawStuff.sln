@@ -3,13 +3,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Runtime", "Runtime\Runtime.csproj", "{83FFD055-E375-4CA6-BCC5-CFD65CE31619}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DrawStuff.Runtime", "Runtime\DrawStuff.Runtime.csproj", "{83FFD055-E375-4CA6-BCC5-CFD65CE31619}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SourceGenerator", "SourceGenerator\SourceGenerator.csproj", "{3DAB6B2E-F00E-4043-A184-280D307D1D4F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DrawStuff.SourceGenerator", "SourceGenerator\DrawStuff.SourceGenerator.csproj", "{3DAB6B2E-F00E-4043-A184-280D307D1D4F}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Samples", "Samples", "{376493A6-BDAF-462F-B830-2A3DDEB33CD0}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Square", "Samples\Square\Square.csproj", "{CBB2A073-18E3-4A1E-93BC-DAFA553FB43B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DrawSquare", "Samples\Square\DrawSquare.csproj", "{CBB2A073-18E3-4A1E-93BC-DAFA553FB43B}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{D76D3504-E21D-44C2-B3F3-4EC39380BB0C}"
 EndProject

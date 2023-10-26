@@ -6,6 +6,8 @@ using System.Text;
 using DrawStuff;
 using ShaderCompiler;
 using System.Reflection;
+using Silk.NET.OpenGL;
+using Silk.NET.Maths;
 
 var assembly = typeof(ShaderTests).Assembly;
 
@@ -76,7 +78,9 @@ class ShaderTests {
         var references = new[] {
             MetadataReference.CreateFromFile(typeof(string).Assembly.Location),
             MetadataReference.CreateFromFile(Path.Combine(assemblyPath, "System.Runtime.dll")),
-            MetadataReference.CreateFromFile(typeof(ShaderLang).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(ShaderLanguage).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(GL).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Matrix4X4<float>).Assembly.Location),
         };
 
         // Parse and analyze the input source file
