@@ -41,25 +41,40 @@ class SourceTree {
 public record CodegenOutput(string CSharpTemplate, string CSharpSrc, string VertexSrc, string FragmentSrc);
 
 public class CodegenCSharp {
-    private static string ToFieldDef(ArgumentInfo arg) {
-        switch (arg.Type) {
-            case ValType.Float: return $"public float {arg.Name};";
-            case ValType.Vec2: return $"public Vec2 {arg.Name};";
-            case ValType.Vec3: return $"public Vec3 {arg.Name};";
-            case ValType.Vec4: return $"public Vec4 {arg.Name};";
-            case ValType.UInt32: return $"public UInt32 {arg.Name};";
-            case ValType.Mat4: return $"public Mat4 {arg.Name};";
-            case ValType.RGBA: return $"public RGBA {arg.Name};";
-            case ValType.VertexPos: return $"public VertexPos {arg.Name};";
+
+    private static string ToCSharpType(ValType t) => t switch {
+        ValType.Float => $"float",
+        ValType.Vec2 => $"Vec2",
+        ValType.Vec3 => $"Vec3",
+        ValType.Vec4 => $"Vec4",
+        ValType.UInt32 => $"UInt32",
+        ValType.Mat4 => $"Mat4",
+        ValType.RGBA => $"RGBA",
+        ValType.VertexPos => $"VertexPos",
+        _ => throw new ShaderGenException("Unknown attribute type"),
+    };
+
+
+    private static string GenerateConstructor(string className, IEnumerable<ArgumentInfo> args) {
+        if (args.Any()) {
+            string argDefs = string.Join(", ", args.Select(a => $"{ToCSharpType(a.Type)} {a.Name}"));
+            string assignments = string.Join(" ", args.Select(a => $"this.{a.Name} = {a.Name};"));
+            return $"public {className}({argDefs}) {{ {assignments} }}";
         }
-        throw new ShaderGenException("Unknown attribute type");
+        return "";
     }
+
+    private static string ToFieldDef(ArgumentInfo arg) =>
+        $"public {ToCSharpType(arg.Type)} {arg.Name};";
 
     private static SourceTree VertexInputStruct(ShaderAnalyze info) {
         return new SourceTree(
             @"[StructLayout(LayoutKind.Sequential)]",
             @"public struct VertexInputs {",
             new SourceTree(info.Vertex.Inputs.Select(ToFieldDef)),
+            new SourceTree(
+                "",
+                GenerateConstructor("VertexInputs", info.Vertex.Inputs)),
             @"}"
         );
     }
@@ -68,13 +83,16 @@ public class CodegenCSharp {
         return new SourceTree(
             @"[StructLayout(LayoutKind.Sequential)]",
             @"public struct StaticVars {",
-            new SourceTree(info.Configs.Select(ToFieldDef)),
+            new SourceTree(info.Globals.Select(ToFieldDef)),
+            new SourceTree(
+                "",
+                GenerateConstructor("StaticVars", info.Globals)),
             @"}"
         );
     }
     public static CodegenOutput GenerateClassExtension(ShaderAnalyze info, SemanticModel model) {
-        var vertexSrc = CodegenGLSL.Compile(model, info.Vertex, CompileMode.VertexEntryPoint);
-        var fragmentSrc = CodegenGLSL.Compile(model, info.Fragment, CompileMode.FragmentEntryPoint);
+        var vertexSrc = CodegenGLSL.Compile(model, CompileMode.VertexEntryPoint, info.Vertex, info.Globals);
+        var fragmentSrc = CodegenGLSL.Compile(model, CompileMode.FragmentEntryPoint, info.Fragment, info.Globals);
         var source = new SourceTree(
             $"public static partial class {info.Sym.Name} {{",
             $"    public const string VertexSource = @\"[[VERTEX_SRC]]\";",

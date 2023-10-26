@@ -22,7 +22,7 @@ public enum ValType {
 public enum ArgKind {
     Input,
     Output,
-    Uniform,
+    Global,
 }
 
 public struct ClassInfo {
@@ -34,7 +34,6 @@ public record struct ArgumentInfo(ArgKind Kind, string Name, ValType Type);
 
 public class MethodInfo {
     public IMethodSymbol Sym;
-    public List<ArgumentInfo> Configs;
     public List<ArgumentInfo> Inputs;
     public List<ArgumentInfo> Outputs;
 }
@@ -59,7 +58,7 @@ public class ShaderAnalyze {
 
     public MethodInfo Vertex;
     public MethodInfo Fragment;
-    public ArgumentInfo[] Configs;
+    public ArgumentInfo[] Globals;
 
     public ShaderAnalyze(List<Diagnostic> errors, ClassInfo c) {
         Sym = c.Type;
@@ -117,33 +116,19 @@ public class ShaderAnalyze {
         return Fail(out r, $"Type {sym.ToDisplayString()} is not supported in shaders", loc);
     }
 
-    static bool IsStaticVar(ITypeSymbol sym, out ITypeSymbol inner) {
-        if (sym is INamedTypeSymbol type && type.Name == "StaticVar") {
-            inner = type.TypeArguments[0];
-            return true;
-        }
-        inner = default!;
-        return false;
-    }
-
     private bool GetMethod(string name, out MethodInfo method) {
         if (!(Members.TryGetValue(name, out var v) && v is IMethodSymbol m && m.IsStatic)) {
             return Fail(out method, $"shader must have a static `{name}` method");
         }
         var syntax = m.DeclaringSyntaxReferences[0].GetSyntax() as MethodDeclarationSyntax;
-        var configs = new List<ArgumentInfo>();
+        var globals = new List<ArgumentInfo>();
         var inputs = new List<ArgumentInfo>();
         var outputs = new List<ArgumentInfo>();
         foreach(var p in m.Parameters) {
             switch(p.RefKind) {
                 case RefKind.In: {
-                    if (IsStaticVar(p.Type, out var innerType)) {
-                        if (ValidateType(innerType, p.Locations[0], out var r)) {
-                            configs.Add(new(ArgKind.Input, p.Name, r));
-                        }
-                    }
-                    else if (ValidateType(p.Type, p.Locations[0], out var r)) {
-                        inputs.Add(new(ArgKind.Uniform, p.Name, r));
+                    if (ValidateType(p.Type, p.Locations[0], out var r)) {
+                        inputs.Add(new(ArgKind.Input, p.Name, r));
                     }
                     break;
                 }
@@ -162,18 +147,16 @@ public class ShaderAnalyze {
                 "Method must return void",
                 syntax?.ReturnType.GetLocation() ?? m.Locations[0]);
         }
-        var info = new MethodInfo() { Sym = m, Configs = configs, Inputs = inputs, Outputs = outputs };
+        var info = new MethodInfo() { Sym = m, Inputs = inputs, Outputs = outputs };
         return Success(out method, info);
     }
 
-    private bool GetVertexMethod(out MethodInfo method) {
-        if (!GetMethod("Vertex", out var vert)) return Fail(out method);
-        return Success(out method, vert);
+    private bool GetVertexMethod() {
+        return GetMethod("Vertex", out Vertex);
     }
 
-    private bool GetFragmentMethod(out MethodInfo method) {
-        if (!GetMethod("Fragment", out var frag)) return Fail(out method);
-        return Success(out method, frag);
+    private bool GetFragmentMethod() {
+        return GetMethod("Fragment", out Fragment);
     }
 
     private void Process() {
@@ -185,27 +168,24 @@ public class ShaderAnalyze {
             Error("shader class must be declared with the `partial` keyword");
             return;
         }
-        if (!GetVertexMethod(out Vertex))
-            return;
-        if (!GetFragmentMethod(out Fragment))
-            return;
 
-        var configs = new Dictionary<string, ArgumentInfo>();
-        var configIter = Enumerable.Empty<ArgumentInfo>();
-        if (Vertex != null) configIter = configIter.Concat(Vertex.Configs);
-        if (Fragment != null) configIter = configIter.Concat(Fragment.Configs);
-        foreach (var u in configIter) {
-            if (configs.TryGetValue(u.Name, out var prev)) {
-                if (u.Type != prev.Type) {
-                    Error($"Config `{u.Name}` referenced with two or more different types");
-                    return;
+        // Find the globals
+        var globals = new List<ArgumentInfo>();
+        foreach (var m in Members.Values) {
+            if (m.IsStatic && m is IFieldSymbol f) {
+                if (ValidateType(f.Type, f.Locations[0], out var r)) {
+                    globals.Add(new(ArgKind.Global, f.Name, r));
                 }
             }
-            else {
-                configs[u.Name] = u;
-            }
         }
-        Configs = configs.Values.OrderBy(u => u.Name).ToArray();
+        Globals = globals.OrderBy(x => x.Name).ToArray();
+        if (Errors.Any())
+            return;
+
+        if (!GetVertexMethod())
+            return;
+        if (!GetFragmentMethod())
+            return;
     }
 
     public static bool Process(List<Diagnostic> errors, ClassInfo c, out ShaderAnalyze result) {

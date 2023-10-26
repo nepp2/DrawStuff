@@ -2,11 +2,14 @@
 using static DrawStuff.ShaderLang;
 
 public static partial class BasicShader {
-    public static void Vertex(in StaticVar<Mat4> uTransform, in Vec3 pos, out VertexPos vertPos) {
-        vertPos = uTransform.val * new Vec4(pos.x, pos.y, pos.z, 1f);
+
+    static Mat4 transform;
+
+    public static void Vertex(in Vec3 pos, out VertexPos vertPos) {
+        vertPos =  new Vec4(pos.x, pos.y, pos.z, 1f) * transform;
     }
 
-    public static void Fragment(out RGBA colour, in Vec4 vertPos) {
+    public static void Fragment(out RGBA colour) {
         colour = new(1, 1, 1, 1);
     }
 }

@@ -24,9 +24,6 @@ void OutputCode(string code) {
 
 void OutputResult(TestResult r) {
     Console.WriteLine($"Shader test '{r.Name}' {(r.Failed ? "failed:" : "succeeded.")}");
-    foreach (var error in r.Errors) {
-        Console.WriteLine($"   - {error}");
-    }
     Console.WriteLine($"Shader test '{r.Name}' CS extension class template:");
     OutputCode(r.Output!.CSharpTemplate.ToString());
     Console.WriteLine($"Shader test '{r.Name}' vertex source:");
@@ -36,6 +33,10 @@ void OutputResult(TestResult r) {
     if(r.Failed) {
         Console.WriteLine($"Shader test '{r.Name}' full source:");
         OutputCode(r.Output!.CSharpSrc);
+        Console.WriteLine($"Shader test '{r.Name}' errors:");
+        foreach (var error in r.Errors) {
+            Console.WriteLine($"   - {error}");
+        }
     }
 }
 

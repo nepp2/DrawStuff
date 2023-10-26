@@ -17,12 +17,12 @@ options.Title = "BoxWorld";
 options.VSync = true;
 using var window = Window.Create(options);
 
-GLVertexArray<VertexAttributes, IndexTriangle> GenerateSquare(GL gl) {
-    var vertBuf = new GLBufferObject<VertexAttributes>(gl, BufferTargetARB.ArrayBuffer);
+GLVertexArray<BasicShader.VertexInputs, IndexTriangle> GenerateSquare(GL gl) {
+    var vertBuf = new GLBufferObject<BasicShader.VertexInputs>(gl, BufferTargetARB.ArrayBuffer);
     var indBuf = new GLBufferObject<IndexTriangle>(gl, BufferTargetARB.ElementArrayBuffer);
     var geometry = GLVertexArray.Create(gl, vertBuf, indBuf);
 
-    var verts = new ValueBuffer<VertexAttributes>();
+    var verts = new ValueBuffer<BasicShader.VertexInputs>();
     var indices = new ValueBuffer<IndexTriangle>();
 
     verts.Push(new(new(1f, 1f, 0f)));
@@ -94,21 +94,18 @@ window.Load += OnLoad;
 window.Run();
 
 [StructLayout(LayoutKind.Sequential)]
-public record struct VertexAttributes(Vert3D Pos);
-
-[StructLayout(LayoutKind.Sequential)]
-public record struct Vert3D(float X, float Y, float Z);
-
-[StructLayout(LayoutKind.Sequential)]
 record struct IndexTriangle(uint A, uint B, uint C);
 
 [ShaderProgram]
 public static partial class BasicShader {
-    public static void Vertex(in StaticVar<Mat4> transform, in Vec3 pos, out VertexPos vertPos) {
-        vertPos = transform.val * new Vec4(pos.x, pos.y, pos.z, 1f);
+
+    static Mat4 transform;
+
+    public static void Vertex(in Vec3 pos, out VertexPos vertPos) {
+        vertPos = transform * new Vec4(pos.x, pos.y, pos.z, 1f);
     }
 
-    public static void Fragment(out RGBA colour, in Vec4 vertPos) {
+    public static void Fragment(out RGBA colour) {
         colour = new(1, 1, 1, 1);
     }
 }

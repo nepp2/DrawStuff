@@ -33,22 +33,22 @@ class CodegenGLSL {
 
     private MethodInfo method;
 
-    private GLSLArg[] Configs;
+    private GLSLArg[] Globals;
     private GLSLArg[] Inputs;
     private GLSLArg[] Outputs;
 
     Dictionary<string, GLSLArg> AllArgs = new();
 
-    public CodegenGLSL(SemanticModel model, CompileMode mode, MethodInfo method) {
+    public CodegenGLSL(SemanticModel model, CompileMode mode, MethodInfo method, ArgumentInfo[] globals) {
         this.model = model;
         this.mode = mode;
         this.method = method;
 
-        Configs = method.Configs.Select(ToGLSLArg).ToArray();
+        Globals = globals.Select(ToGLSLArg).ToArray();
         Inputs = method.Inputs.Select(ToGLSLArg).ToArray();
         Outputs = method.Outputs.Select(ToGLSLArg).ToArray();
 
-        foreach (var a in Configs) AllArgs.Add(a.Name, a);
+        foreach (var a in Globals) AllArgs.Add(a.Name, a);
         foreach (var a in Inputs) AllArgs.Add(a.Name, a);
         foreach (var a in Outputs) AllArgs.Add(a.Name, a);
     }
@@ -64,12 +64,7 @@ class CodegenGLSL {
     }
 
     string GenMemberAccess(MemberAccessExpressionSyntax m) {
-        var e = m.Expression;
-        var info = model.GetTypeInfo(e);
-        if(info.Type?.Name == "StaticVar" && m.Name.ToString() == "val") {
-            return GenExpr(e);
-        }
-        return $"{GenExpr(e)}.{m.Name}";
+        return $"{GenExpr(m.Expression)}.{m.Name}";
     }
 
     string GenAssignment(AssignmentExpressionSyntax e) {
@@ -152,7 +147,7 @@ class CodegenGLSL {
     void GenHeader(IndentedTextWriter w) {
         w.WriteLine("#version 330 core");
         int loc = 0;
-        foreach (var u in Configs) {
+        foreach (var u in Globals) {
             w.WriteLine($"uniform {TypeToString(u.Type)} {u.GLSLName};");
         }
         foreach (var i in Inputs) {
@@ -190,8 +185,8 @@ class CodegenGLSL {
         return buffer.ToString();
     }
 
-    public static string Compile(SemanticModel model, MethodInfo method, CompileMode mode) {
-        var compiler = new CodegenGLSL(model, mode, method);
+    public static string Compile(SemanticModel model, CompileMode mode, MethodInfo method, ArgumentInfo[] globals) {
+        var compiler = new CodegenGLSL(model, mode, method, globals);
         return compiler.GenShader();
     }
 }
