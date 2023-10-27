@@ -32,20 +32,28 @@ public static partial class BasicShader {
 }
 ```
 
-The source generator provides a config data structure so that we can create a working graphics pipeline as follows:
+The source generator provides a config data structure so that we can create a working shader as follows:
 
 ```csharp
-    var pipeline = RenderPipeline.Create(gl, BasicShader.PipelineConfig);
+var ds = IDrawStuff.StartDrawing(window);
+var shader = ds.LoadShader(gl, BasicShader.Config);
 ```
 
-This automatically creates the GPU vertex array and configures its data layout to match the shader. If I use this pipeline to render an array of `Vec3` structs, everything will line up correctly. If I try to pass in `Vec4` structs, I'll get a compile error.
-
-The pipeline type is also aware that there's a global variable called `transform`, and expects to receive it as a mandatory argument to the render method. The method signature makes this obvious, and will change if I modify the shader:
+This shader is type-specialised so that it will only accept a specific type of vertex data, and it will force the user to provide any global shader variables referenced by the shader code. In the case of `BasicShader`, this means it expects an array of `Vec3` structs and a `Mat4` transform value:
 
 ```csharp
-    pipeline.Render(); // this is a compile error
+// the type `Shader<Vec3, Mat4>` is inferred from the config value
+var shader = ds.LoadShader(gl, BasicShader.Config);
+var transform = Mat4.Identity;
 
-    pipeline.Render(Mat4.Identity); // this works fine
+void Draw(TriangleArray<Vec3> array3D) {
+    shader.Draw(array3D); // this is a compile error - missing parameter
+    shader.Draw(array3D, transform); // this works fine
+}
+
+void Draw(TriangleArray<Vec2> array2D) {
+    shader.Draw(array2D, transform); // this is a compile error - wrong vertex type
+}
 ```
 
 # Warning

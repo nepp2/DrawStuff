@@ -30,7 +30,7 @@ public struct ClassInfo {
     public ClassDeclarationSyntax Syntax;
 }
 
-public record struct ArgumentInfo(ArgKind Kind, string Name, ValType Type);
+public record struct ArgumentInfo(ArgKind Kind, string Name, ValType Type, Location Loc);
 
 public class MethodInfo {
     public IMethodSymbol Sym;
@@ -128,13 +128,13 @@ public class ShaderAnalyze {
             switch(p.RefKind) {
                 case RefKind.In: {
                     if (ValidateType(p.Type, p.Locations[0], out var r)) {
-                        inputs.Add(new(ArgKind.Input, p.Name, r));
+                        inputs.Add(new(ArgKind.Input, p.Name, r, p.Locations[0]));
                     }
                     break;
                 }
                 case RefKind.Out: {
                     if (ValidateType(p.Type, p.Locations[0], out var r)) {
-                        outputs.Add(new(ArgKind.Output, p.Name, r));
+                        outputs.Add(new(ArgKind.Output, p.Name, r, p.Locations[0]));
                     }
                     break;
                 }
@@ -174,11 +174,11 @@ public class ShaderAnalyze {
         foreach (var m in Members.Values) {
             if (m.IsStatic && m is IFieldSymbol f) {
                 if (ValidateType(f.Type, f.Locations[0], out var r)) {
-                    globals.Add(new(ArgKind.Global, f.Name, r));
+                    globals.Add(new(ArgKind.Global, f.Name, r, f.Locations[0]));
                 }
             }
         }
-        Globals = globals.OrderBy(x => x.Name).ToArray();
+        Globals = globals.OrderBy(x => x.Loc.GetLineSpan().StartLinePosition).ToArray();
         if (Errors.Any())
             return;
 

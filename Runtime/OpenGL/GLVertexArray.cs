@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 namespace DrawStuff;
 
 [StructLayout(LayoutKind.Sequential)]
-public record struct TriangleIndices(uint A, uint B, uint C);
+public record struct Triangle(uint A, uint B, uint C);
 
 public record struct GLAttribPtrType(VertexAttribPointerType Type, int ByteSize) {
     public static GLAttribPtrType Float32 => new(VertexAttribPointerType.Float, 4);

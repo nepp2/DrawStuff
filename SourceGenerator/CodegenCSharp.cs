@@ -176,7 +176,7 @@ public class CodegenCSharp {
                 @"",
                 vertexTypeDef,
                 varsCode,
-                $"public static RenderConfig<{vertexType}, {varsType}> PipelineConfig =>",
+                $"public static ShaderConfig<{vertexType}, {varsType}> Config =>",
                 @"    new(VertexSource, FragmentSource, SetShaderVars, VertexAttributes);"
             ),
             @"}"

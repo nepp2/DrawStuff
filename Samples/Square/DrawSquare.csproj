@@ -12,14 +12,6 @@
   </ItemGroup>
 
   <ItemGroup>
-
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="white.png" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\..\SourceGenerator\DrawStuff.SourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
