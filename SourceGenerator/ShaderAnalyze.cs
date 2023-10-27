@@ -34,8 +34,8 @@ public record struct ArgumentInfo(ArgKind Kind, string Name, ValType Type);
 
 public class MethodInfo {
     public IMethodSymbol Sym;
-    public List<ArgumentInfo> Inputs;
-    public List<ArgumentInfo> Outputs;
+    public ArgumentInfo[] Inputs;
+    public ArgumentInfo[] Outputs;
 }
 
 public class Diagnostics {
@@ -147,7 +147,7 @@ public class ShaderAnalyze {
                 "Method must return void",
                 syntax?.ReturnType.GetLocation() ?? m.Locations[0]);
         }
-        var info = new MethodInfo() { Sym = m, Inputs = inputs, Outputs = outputs };
+        var info = new MethodInfo() { Sym = m, Inputs = inputs.ToArray(), Outputs = outputs.ToArray() };
         return Success(out method, info);
     }
 

@@ -74,11 +74,6 @@ public static class GLVertexArray {
         GL gl, GLBufferObject<VBO> vbo, GLBufferObject<EBO> ebo)
         where VBO : unmanaged where EBO : unmanaged
             => new(gl, vbo, ebo);
-
-    public static GLTriangleArray<VBO> Create<VBO>(
-        GL gl, GLBufferObject<VBO> vbo)
-        where VBO : unmanaged
-            => new(gl, vbo, new (gl, BufferTargetARB.ElementArrayBuffer));
 }
 
 public class GLVertexArray<VBO, EBO> : IDisposable where VBO : unmanaged where EBO : unmanaged {
@@ -90,7 +85,7 @@ public class GLVertexArray<VBO, EBO> : IDisposable where VBO : unmanaged where E
 
     private GLAttribute[] Attribs;
 
-    public GLVertexArray(GL gl, GLBufferObject<VBO> vbo, GLBufferObject<EBO> ebo) {
+    public GLVertexArray(GL gl, GLBufferObject<VBO> vbo, GLBufferObject<EBO> ebo, GLAttribute[]? attribs = null) {
         this.gl = gl;
         Handle = gl.GenVertexArray();
         Vbo = vbo;
@@ -103,7 +98,7 @@ public class GLVertexArray<VBO, EBO> : IDisposable where VBO : unmanaged where E
         Vbo.Bind();
         Ebo.Bind();
 
-        Attribs = GLAttribute.InferAttribArray<VBO>();
+        Attribs = attribs != null ? attribs : GLAttribute.InferAttribArray<VBO>();
         SetAttributeLayout(gl, Attribs);
         gl.EnableVertexAttribArray(0);
     }
@@ -141,11 +136,5 @@ public class GLVertexArray<VBO, EBO> : IDisposable where VBO : unmanaged where E
         gl.DeleteVertexArray(Handle);
         Vbo.Dispose();
         Ebo.Dispose();
-    }
-}
-
-public class GLTriangleArray<VBO> : GLVertexArray<VBO, TriangleIndices> where VBO : unmanaged {
-    public GLTriangleArray(GL gl, GLBufferObject<VBO> vbo, GLBufferObject<TriangleIndices> ebo) : base(gl, vbo, ebo) {
-
     }
 }

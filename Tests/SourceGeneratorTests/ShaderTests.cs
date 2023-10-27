@@ -27,14 +27,24 @@ void OutputCode(string code) {
 void OutputResult(TestResult r) {
     Console.WriteLine($"Shader test '{r.Name}' {(r.Failed ? "failed:" : "succeeded.")}");
     Console.WriteLine($"Shader test '{r.Name}' CS extension class template:");
-    OutputCode(r.Output!.CSharpTemplate.ToString());
-    Console.WriteLine($"Shader test '{r.Name}' vertex source:");
-    OutputCode(r.Output!.VertexSrc);
-    Console.WriteLine($"Shader test '{r.Name}' fragment source:");
-    OutputCode(r.Output!.FragmentSrc);
-    if(r.Failed) {
-        Console.WriteLine($"Shader test '{r.Name}' full source:");
-        OutputCode(r.Output!.CSharpSrc);
+    if (r.Output is CodegenOutput o) {
+        OutputCode(o.CSharpTemplate.ToString());
+        Console.WriteLine($"Shader test '{r.Name}' vertex source:");
+        OutputCode(o.VertexSrc);
+        Console.WriteLine($"Shader test '{r.Name}' fragment source:");
+        OutputCode(o.FragmentSrc);
+        if (r.Errors.Any() || r.Warnings.Any()) {
+            Console.WriteLine($"Shader test '{r.Name}' full source:");
+            OutputCode(o.CSharpSrc);
+        }
+    }
+    if (r.Warnings.Any()) {
+        Console.WriteLine($"Shader test '{r.Name}' warnings:");
+        foreach (var error in r.Warnings) {
+            Console.WriteLine($"   - {error}");
+        }
+    }
+    if (r.Errors.Any()) {
         Console.WriteLine($"Shader test '{r.Name}' errors:");
         foreach (var error in r.Errors) {
             Console.WriteLine($"   - {error}");
@@ -51,7 +61,13 @@ foreach (var r in results.Where(r => r.Failed))
 record TestResult(string Name) {
     public CodegenOutput? Output = null;
     public List<string> Errors = new();
-    public bool Failed { get => Errors.Count > 0; }
+    public List<string> Warnings = new();
+    public bool Failed => Errors.Any();
+
+    public void AddDiagnostics(IEnumerable<Diagnostic> ds) {
+        Errors.AddRange(ds.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => $"{d}"));
+        Warnings.AddRange(ds.Where(d => d.Severity == DiagnosticSeverity.Warning).Select(d => $"{d}"));
+    }
 }
 
 class ShaderTests {
@@ -65,7 +81,6 @@ class ShaderTests {
         using StreamReader sr = new StreamReader(mem, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
         return sr.ReadToEnd();
     }
-
 
     public static TestResult TestShader(string shaderName, string inputSrc) {
         var r = new TestResult(shaderName);
@@ -89,7 +104,7 @@ class ShaderTests {
             .AddReferences(references)
             .AddSyntaxTrees(inputSyntax);
         SemanticModel model = compilation.GetSemanticModel(inputSyntax);
-        r.Errors.AddRange(model.GetDiagnostics().Select(d => d.ToString()));
+        r.AddDiagnostics(model.GetDiagnostics());
         if (r.Failed) return r;
 
         // Find the shader class
@@ -114,7 +129,7 @@ class ShaderTests {
                 var msg = $"Internal ShaderGen exception: {e.Message}";
                 r.Errors.Add(msg);
             }
-            r.Errors.AddRange(diagnostics.Select(d => d.ToString()));
+            r.AddDiagnostics(diagnostics);
         }
         else {
             r.Errors.Add("No type symbol was found for shader class");
@@ -126,9 +141,7 @@ class ShaderTests {
         var compilationExt = CSharpCompilation.Create($"{shaderName}.ext")
             .AddReferences(references)
             .AddSyntaxTrees(inputSyntax, outputSyntax);
-        r.Errors.AddRange(
-            compilationExt.GetSemanticModel(outputSyntax)
-            .GetDiagnostics().Select(d => d.ToString()));
+        r.AddDiagnostics(compilationExt.GetSemanticModel(outputSyntax).GetDiagnostics());
 
         return r;
     }

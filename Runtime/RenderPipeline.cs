@@ -3,8 +3,12 @@ using Silk.NET.OpenGL;
 
 namespace DrawStuff;
 
-public record struct RenderConfig<Vertex, Vars>(string VertexSrc, string FragmentSrc, RenderPipeline<Vertex, Vars>.SetShaderVars setVars)
-    where Vertex : unmanaged where Vars : unmanaged;
+public record struct RenderConfig<Vertex, Vars>(
+    string VertexSrc,
+    string FragmentSrc,
+    RenderPipeline<Vertex, Vars>.SetShaderVars SetVars,
+    GLAttribute[] VertexAttribs)
+        where Vertex : unmanaged where Vars : unmanaged;
 
 public class RenderPipeline {
     public static RenderPipeline<Vertex, Vars> Create<Vertex, Vars>(GL gl, RenderConfig<Vertex, Vars> config)
@@ -24,9 +28,9 @@ public class RenderPipeline<Vertex, Vars>
     public RenderPipeline(GL gl, RenderConfig<Vertex, Vars> config) {
         var vbo = new GLBufferObject<Vertex>(gl, BufferTargetARB.ArrayBuffer);
         var ebo = new GLBufferObject<TriangleIndices>(gl, BufferTargetARB.ElementArrayBuffer);
-        gpuBuffers = GLVertexArray.Create(gl, vbo, ebo);
+        gpuBuffers = new GLVertexArray<Vertex, TriangleIndices>(gl, vbo, ebo, config.VertexAttribs);
         shader = GLShader.Compile(gl, config.VertexSrc, config.FragmentSrc);
-        setVars = config.setVars;
+        setVars = config.SetVars;
     }
 
     public void SetIndices(ReadOnlySpan<TriangleIndices> triangles) {

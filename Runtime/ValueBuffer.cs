@@ -1,7 +1,10 @@
 ﻿
+using Silk.NET.Maths;
 using Silk.NET.SDL;
+using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using static DrawStuff.ShaderLanguage;
 
 namespace DrawStuff;
 
@@ -43,6 +46,8 @@ public class ValueBuffer<T> where T : unmanaged {
     public ReadOnlySpan<T> AsReadOnlySpan() {
         return AsSpan();
     }
+
+    public static implicit operator ReadOnlySpan<T>(ValueBuffer<T> v) => v.AsSpan();
 
     public ReadOnlySpan<U> CastElements<U>() where U : unmanaged
         => MemoryMarshal.Cast<T, U>(AsSpan());

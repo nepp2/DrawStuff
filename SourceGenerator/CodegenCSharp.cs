@@ -6,45 +6,46 @@ using System.Linq;
 
 namespace ShaderCompiler;
 
-struct SourceNode {
+public struct SrcNode {
     private object Obj;
-    public static implicit operator SourceNode(string s) => new SourceNode() { Obj = s };
-    public static implicit operator SourceNode(string[] l) => new SourceNode() { Obj = l };
-    public static implicit operator SourceNode(SourceTree t) => new SourceNode() { Obj = t };
 
-    public string? TryString() => Obj as string;
-    public string[]? TryStringArray() => Obj as string[];
-    public SourceTree? TryTree() => Obj as SourceTree;
-}
+    public static implicit operator SrcNode(string s) => new SrcNode() { Obj = s };
+    public static implicit operator SrcNode(SrcList t) => new SrcNode() { Obj = t };
 
-class SourceTree {
-    private SourceNode[] Nodes;
-    private int Indent = 1;
-    public SourceTree(params SourceNode[] nodes) { Nodes = nodes; }
-    public SourceTree(IEnumerable<string> nodes) { Nodes = nodes.Select(s => (SourceNode)s).ToArray(); }
-    public SourceTree(int indent, params SourceNode[] nodes) { Indent = indent; Nodes = nodes; }
+    string? TryString() => Obj as string;
+    SrcList? TryList() => Obj as SrcList;
 
     public void Write(StringBuilder sb, int indent = 0) {
-        foreach (var n in Nodes) {
-            if (n.TryString() is string line) {
-                for (int i = 0; i < indent; ++i) sb.Append("    ");
-                sb.AppendLine(line);
-            }
-            else if (n.TryStringArray() is string[] lines) {
-                foreach (var l in lines) {
-                    for (int i = 0; i < indent; ++i) sb.Append("    ");
-                    sb.AppendLine(l);
-                }
-            }
-            else if (n.TryTree() is SourceTree t) {
-                t.Write(sb, indent + t.Indent);
-            }
-            else {
-                throw new ShaderGenException("Unexpected element in source tree");
-            }
+        if (TryString() is string line) {
+            for (int i = 0; i < indent; ++i) sb.Append("    ");
+            sb.AppendLine(line);
+        }
+        else if (TryList() is SrcList t) {
+            t.Write(sb, indent);
+        }
+        else {
+            throw new ShaderGenException("Unexpected element in source tree");
         }
     }
 }
+
+public record SrcList(int Indent, SrcNode[] Nodes) {
+    public void Write(StringBuilder sb, int indent) {
+        foreach (var n in Nodes) {
+            n.Write(sb, indent + Indent);
+        }
+    }
+}
+
+public class Src {
+    public static SrcNode Root(params SrcNode[] ns) => new SrcList(0, ns);
+    public static SrcNode Inline(params SrcNode[] ns) => new SrcList(0, ns);
+    public static SrcNode Empty() => Inline();
+    public static SrcNode Indent(params SrcNode[] ns) => new SrcList(1, ns);
+    public static SrcNode Indent(IEnumerable<SrcNode> ns) => new SrcList(1, ns.ToArray());
+    public static SrcNode Indent(IEnumerable<string> ns) => new SrcList(1, ns.Select(s => (SrcNode)s).ToArray());
+}
+
 
 public record CodegenOutput(string CSharpTemplate, string CSharpSrc, string VertexSrc, string FragmentSrc);
 
@@ -59,81 +60,136 @@ public class CodegenCSharp {
         ValType.Mat4 => $"Mat4",
         ValType.RGBA => $"RGBA",
         ValType.VertexPos => $"VertexPos",
-        _ => throw new ShaderGenException("Unknown attribute type"),
+        _ => throw new ShaderGenException("Unknown value type"),
     };
 
+    private static (string PtrType, int NumVals) GetVertexAttribInfo(ValType type) {
+        return type switch {
+            ValType.Float => ("GLAttribPtrType.Float32", 1),
+            ValType.Vec2 => ("GLAttribPtrType.Float32", 2),
+            ValType.Vec3 => ("GLAttribPtrType.Float32", 3),
+            ValType.Vec4 or ValType.RGBA or ValType.VertexPos =>
+                ("GLAttribPtrType.Float32", 4),
+            ValType.UInt32 => ("GLAttribPtrType.Uint32", 1),
+            ValType.Mat4 => ("GLAttribPtrType.Float32", 16),
+            _ => throw new ShaderGenException("Unknown value type"),
+        };
+    }
 
-    private static string[] GenerateConstructor(string className, IEnumerable<ArgumentInfo> args) {
-        var code = new List<string>();
+    private static SrcNode GenerateConstructor(string className, ArgumentInfo[] args) {
         if (args.Any()) {
             string argDefs = string.Join(", ", args.Select(a => $"{ToCSharpType(a.Type)} {a.Name}"));
             string assignments = string.Join(" ", args.Select(a => $"this.{a.Name} = {a.Name};"));
-            code.Add($"public {className}({argDefs}) {{ {assignments} }}");
+            return $"public {className}({argDefs}) {{ {assignments} }}";
         }
-        if (args.Count() == 1) {
-            code.Add($"public static implicit operator {className}({ToCSharpType(args.First().Type)} v) => new(v);");
-        }
-        return code.ToArray();
+        return Src.Empty();
     }
 
-    private static string ToFieldDef(ArgumentInfo arg) =>
+    private static SrcNode ToFieldDef(ArgumentInfo arg) =>
         $"public {ToCSharpType(arg.Type)} {arg.Name};";
 
-    public static CodegenOutput GenerateClassExtension(ShaderAnalyze info, SemanticModel model) {
-        var vertexSrc = CodegenGLSL.Compile(model, CompileMode.VertexEntryPoint, info.Vertex, info.Globals);
-        var fragmentSrc = CodegenGLSL.Compile(model, CompileMode.FragmentEntryPoint, info.Fragment, info.Globals);
-        var source = new SourceTree(
-            $"public static partial class {info.Sym.Name} {{",
-            new SourceTree(
-                $"public const string VertexSource = @\"[[VERTEX_SRC]]\";",
-                $"public const string FragmentSource = @\"[[FRAGMENT_SRC]]\";",
-                @"",
+    private static (string vertexType, SrcNode src) GenerateVertexCode(ArgumentInfo[] vertexInputs) {
+        var vertexAttribs = Src.Inline(
+            @"public static readonly GLAttribute[] VertexAttributes = new GLAttribute[] {",
+            Src.Indent(vertexInputs.Select(v => {
+                var attrib = GetVertexAttribInfo(v.Type);
+                return $"new (\"{v.Name}\", {attrib.NumVals}, {attrib.PtrType}),";
+            })),
+            @"};",
+            @""
+        );
+        if (vertexInputs.Length == 1) {
+            return (ToCSharpType(vertexInputs[0].Type), vertexAttribs);
+        }
+        else {
+            var typeDef = Src.Inline(
                 @"[StructLayout(LayoutKind.Sequential)]",
                 @"public struct VertexData {",
-                new SourceTree(
-                    info.Vertex.Inputs.Select(ToFieldDef).ToArray(),
+                Src.Indent(
+                    Src.Inline(vertexInputs.Select(ToFieldDef).ToArray()),
                     "",
-                    GenerateConstructor("VertexData", info.Vertex.Inputs)
+                    GenerateConstructor("VertexData", vertexInputs)
                 ),
                 @"}",
                 @"",
+                vertexAttribs,
+                @""
+            );
+            return ("VertexData", typeDef);
+        }
+    }
+
+    private static (string varType, SrcNode code) GenerateVarsCode(ArgumentInfo[] globals) {
+        if (globals.Length == 1) {
+            var g = globals[0];
+            var varType = ToCSharpType(g.Type);
+            var code = Src.Inline(
+                $"public static void SetShaderVars(GLShader shader, in {varType} v) {{",
+                $"    shader.SetUniform(\"{g.Name}\", v);",
+                @"}",
+                @""
+            );
+            return (varType, code);
+        }
+        else {
+            var code = Src.Inline(
                 @"public struct Vars {",
-                new SourceTree(
-                    info.Globals.Select(ToFieldDef).ToArray(),
+                Src.Indent(
+                    Src.Inline(globals.Select(ToFieldDef).ToArray()),
                     "",
-                    GenerateConstructor("Vars", info.Globals)
+                    GenerateConstructor("Vars", globals)
                 ),
                 @"}",
                 @"",
                 @"public static void SetShaderVars(GLShader shader, in Vars v) {",
-                    new SourceTree(info.Globals.Select(g => $"shader.SetUniform(\"{g.Name}\", v.{g.Name});")),
+                    Src.Indent(globals.Select(g => $"shader.SetUniform(\"{g.Name}\", v.{g.Name});")),
                 @"}",
+                @""
+            );
+            return ("Vars", code);
+        }
+    }
+
+    public static CodegenOutput GenerateClassExtension(ShaderAnalyze info, SemanticModel model) {
+        var vertexSrc = CodegenGLSL.Compile(model, CompileMode.VertexEntryPoint, info.Vertex, info.Globals);
+        var fragmentSrc = CodegenGLSL.Compile(model, CompileMode.FragmentEntryPoint, info.Fragment, info.Globals);
+
+        var (vertexType, vertexTypeDef) = GenerateVertexCode(info.Vertex.Inputs);
+        var (varsType, varsCode) = GenerateVarsCode(info.Globals);
+
+        var shaderNamespace = info.Sym.ContainingNamespace;
+        SrcNode namespaceDecl = shaderNamespace.IsGlobalNamespace
+            ? Src.Inline()
+            : Src.Inline($"namespace {shaderNamespace.ToDisplayString()};", "");
+
+        var source = Src.Root(
+            "using System.Runtime.InteropServices;",
+            "using Silk.NET.OpenGL;",
+            "using DrawStuff;",
+            "using static DrawStuff.ShaderLanguage;",
+            "",
+            namespaceDecl,
+            $"public static partial class {info.Sym.Name} {{",
+            Src.Indent(
+                $"public const string VertexSource = @\"[[VERTEX_SRC]]\";",
+                $"public const string FragmentSource = @\"[[FRAGMENT_SRC]]\";",
                 @"",
-                @"public static RenderConfig<VertexData, Vars> PipelineConfig =>",
-                @"    new(VertexSource, FragmentSource, SetShaderVars);"
+                vertexTypeDef,
+                varsCode,
+                $"public static RenderConfig<{vertexType}, {varsType}> PipelineConfig =>",
+                @"    new(VertexSource, FragmentSource, SetShaderVars, VertexAttributes);"
             ),
             @"}"
         );
-        var ns = info.Sym.ContainingNamespace;
-        if (!ns.IsGlobalNamespace) {
-            source = new SourceTree(
-                $"namespace {ns.ToDisplayString()}",
-                source,
-                @"}"
-            );
-        }
-        var sb = new StringBuilder();
-        sb.AppendLine("using System.Runtime.InteropServices;");
-        sb.AppendLine("using Silk.NET.OpenGL;");
-        sb.AppendLine("using DrawStuff;");
-        sb.AppendLine("using static DrawStuff.ShaderLanguage;");
-        sb.AppendLine("");
-        source.Write(sb);
 
+        var sb = new StringBuilder();
+        source.Write(sb);
         var template = sb.ToString();
+
         sb.Replace("[[VERTEX_SRC]]", vertexSrc);
         sb.Replace("[[FRAGMENT_SRC]]", fragmentSrc);
+        var fullSrc = sb.ToString();
 
-        return new(template, sb.ToString(), vertexSrc, fragmentSrc);
+        return new(template, fullSrc, vertexSrc, fragmentSrc);
     }
 }

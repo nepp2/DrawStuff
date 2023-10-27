@@ -11,7 +11,7 @@ var (width, height) = (2500, 1500);
 
 var options = WindowOptions.Default;
 options.Size = new Vector2D<int>(width, height);
-options.Title = "BoxWorld";
+options.Title = "DrawSquare";
 options.VSync = true;
 using var window = Window.Create(options);
 
@@ -33,14 +33,16 @@ void OnLoad() {
     // Generate a square
     var verts = pipeline.CreateVertexBuffer();
     var indices = pipeline.CreateIndexBuffer();
-    verts.Push(new Vec3(1f, 1f, 0f));
-    verts.Push(new Vec3(1f, 0f, 0f));
-    verts.Push(new Vec3(0f, 1f, 0f));
-    verts.Push(new Vec3(0f, 0f, 0f));
-    indices.Push(new TriangleIndices(0, 1, 2));
-    indices.Push(new TriangleIndices(1, 2, 3));
-    pipeline.SetVertexData(verts.AsSpan());
-    pipeline.SetIndices(indices.AsSpan());
+    verts.Push(new (1f, 1f, 0f));
+    verts.Push(new (1f, 0f, 0f));
+    verts.Push(new (0f, 1f, 0f));
+    verts.Push(new (0f, 0f, 0f));
+    indices.Push(new (0, 1, 2));
+    indices.Push(new (1, 2, 3));
+    pipeline.SetVertexData(verts);
+    pipeline.SetIndices(indices);
+
+    double totalTime = 0;
 
     void OnRender(double seconds) {
 
@@ -48,18 +50,21 @@ void OnLoad() {
 
         gl.Clear((uint)ClearBufferMask.ColorBufferBit | (uint)ClearBufferMask.DepthBufferBit);
 
-        Mat4 transform =
+        var (x, y) = ((width - size) / 2f, (height - size) / 2f);
+        totalTime += seconds;
+        x += (float)Math.Cos(totalTime * 2) * width * 0.3f;
+        y += (float)Math.Sin(totalTime * 2) * height * 0.3f;
+
+        var transform =
             Matrix4X4.CreateScale(new Vector3D<float>(size, size, 1f))
-            * Matrix4X4.CreateTranslation((width - size) / 2f, (height - size) / 2f, 0)
+            * Matrix4X4.CreateTranslation(x, y, 0)
             * Matrix4X4.CreateScale(new Vector3D<float>(2f / width, -2f / height, 1f))
             * Matrix4X4.CreateTranslation(-1f, 1f, 0);
 
         pipeline.Render(transform);
     }
 
-    void OnUpdate(double obj) {
-        
-    }
+    void OnUpdate(double obj) {}
 
     void OnClose() {}
 
