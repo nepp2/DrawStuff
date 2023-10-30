@@ -15,6 +15,8 @@ public static class ShaderLanguage {
         public long index;
     }
 
+    public struct TextureHandle { }
+
     [StructLayout(LayoutKind.Sequential)]
     public struct Mat4 {
         public Vec4 Row1;
@@ -41,6 +43,8 @@ public static class ShaderLanguage {
         public static Vec4 operator +(Vec4 a, Vec4 b) => throw new ShaderLanguageException();
         public static Vec4 operator -(Vec4 a, Vec4 b) => throw new ShaderLanguageException();
         public static Vec4 operator *(Vec4 a, Vec4 b) => throw new ShaderLanguageException();
+        public static Vec4 operator *(Vec4 a, float b) => throw new ShaderLanguageException();
+        public static Vec4 operator /(Vec4 a, float b) => throw new ShaderLanguageException();
 
         public static implicit operator Vec4(Vector4D<float> v) => new(v);
     }
@@ -67,8 +71,6 @@ public static class ShaderLanguage {
         public static implicit operator Vec2(Vector2D<float> v) => new(v);
     }
 
-    public static float sqrt(float v) => throw new NotImplementedException();
-
     [StructLayout(LayoutKind.Sequential)]
     public record struct RGBA(float r, float g, float b, float a) {
         public RGBA(Vector4D<float> v) : this(v.X, v.Y, v.Z, v.W) { }
@@ -93,4 +95,11 @@ public static class ShaderLanguage {
         public static implicit operator VertexPos(Vec4 v) => new(v.x, v.y, v.z, v.w);
         public static implicit operator Vec4(VertexPos v) => new(v.x, v.y, v.z, v.w);
     }
+
+    public static float sqrt(float v) => throw new NotImplementedException();
+
+    public static Vec4 sample(TextureHandle t, Vec2 tc) => throw new NotImplementedException();
+
+    public static Vec4 discard() => throw new NotImplementedException();
+
 }

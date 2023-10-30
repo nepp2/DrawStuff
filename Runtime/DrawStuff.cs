@@ -1,17 +1,11 @@
 ﻿using Silk.NET.Maths;
 using Silk.NET.OpenGL;
+using Silk.NET.SDL;
 using Silk.NET.Windowing;
+using System.Runtime.CompilerServices;
+using static DrawStuff.ShaderLanguage;
 
 namespace DrawStuff;
-
-public record ShaderConfig(string VertexSrc, string FragmentSrc, GLAttribute[] VertexAttribs);
-
-public record ShaderConfig<Vertex, Vars>(
-    string VertexSrc,
-    string FragmentSrc,
-    Shader<Vertex, Vars>.SetShaderVars SetVars,
-    GLAttribute[] VertexAttribs) : ShaderConfig(VertexSrc, FragmentSrc, VertexAttribs)
-        where Vertex : unmanaged where Vars : unmanaged;
 
 public interface ShapeArray<Vertex, ShapeType> : IDisposable
     where Vertex : unmanaged
@@ -94,6 +88,27 @@ public static class ShapeBuilderExt {
         b.PushIndices(new(i + 0, i + 1, i + 2));
         b.PushIndices(new(i + 1, i + 2, i + 3));
     }
+
+    public delegate Vert ToVertex<Vert>(float xPos, float yPos, float xTex, float yTex);
+
+    [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
+    public static void PushQuad<Vertex>(
+        this ShapeBuilder<Vertex, Triangle> b,
+        float x, float y, float w, float h,
+        float tx, float ty, float tw, float th,
+        ToVertex<Vertex> toVert)
+            where Vertex : unmanaged
+    {
+        uint i = (uint)b.VertexCount;
+        var (x2, y2) = (x + w, y + h);
+        var (tx2, ty2) = (tx + tw, ty + th);
+        b.PushVert(toVert(x2, y2, tx2, ty2));
+        b.PushVert(toVert(x2, y, tx2, ty));
+        b.PushVert(toVert(x, y, tx, ty));
+        b.PushVert(toVert(x, y2, tx, ty2));
+        b.PushIndices(new(i + 0, i + 1, i + 3));
+        b.PushIndices(new(i + 1, i + 2, i + 3));
+    }
 }
 
 public interface IDrawStuff : IDisposable {
@@ -103,13 +118,20 @@ public interface IDrawStuff : IDisposable {
     public static IDrawStuff StartDrawing(IWindow window) => new DrawStuffGL(window);
 
     Shader<Vertex, Vars> LoadShader<Vertex, Vars>(ShaderConfig<Vertex, Vars> config)
-        where Vertex : unmanaged where Vars : unmanaged;
+        where Vertex : unmanaged;
 
     ShapeArray<Vertex, ShapeType> CreateShapeArray<Vertex, ShapeType>(ShaderConfig config)
         where Vertex : unmanaged
         where ShapeType : unmanaged;
 
+    // Create a camera that uses pixel coordinates with the origin in the top left
+    Matrix4X4<float> GetPixelCamera() =>
+        Matrix4X4.CreateScale(2f / Window.Size.X, -2f / Window.Size.Y, 1f)
+            * Matrix4X4.CreateTranslation(-1f, 1f, 0f);
+
     void ClearWindow();
+
+    BakedFont LoadDefaultFont();
 }
 
 public class DrawStuffGL : IDrawStuff {
@@ -133,7 +155,7 @@ public class DrawStuffGL : IDrawStuff {
     }
 
     public Shader<Vertex, Vars> LoadShader<Vertex, Vars>(ShaderConfig<Vertex, Vars> config)
-        where Vertex : unmanaged where Vars : unmanaged
+        where Vertex : unmanaged
             => new Shader<Vertex, Vars>(this, config);
 
     public ShapeArray<Vertex, ShapeType> CreateShapeArray<Vertex, ShapeType>(ShaderConfig config)
@@ -144,4 +166,7 @@ public class DrawStuffGL : IDrawStuff {
     public void ClearWindow() {
         GetGL().Clear((uint)ClearBufferMask.ColorBufferBit | (uint)ClearBufferMask.DepthBufferBit);
     }
+
+    public BakedFont LoadDefaultFont() =>
+        Font.Builtins.LoadRoboto(GetGL());
 }

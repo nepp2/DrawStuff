@@ -16,7 +16,7 @@ public enum UniformType {
 
 public record struct GLUniform(UniformType Type, string Name);
 
-public record ShaderInputs(GLAttribute[] Attributes, GLUniform[] Uniforms);
+public record ShaderInputs(GLAttribute[] Attributes);
 
 public class ShaderInfo {
 
@@ -25,18 +25,6 @@ public class ShaderInfo {
     static Regex attributeRegex = new(
         @"layout\s*\(\s*location\s*=\s*(?<location>\d+)\s*\)\s*in\s*(?<type>\w+)\s*(?<name>\w+)\s*;",
         RegexOptions.Compiled);
-
-    static Regex uniformRegex = new(@"uniform\s+(?<type>\w+)\s+(?<name>\w+)\s*;", RegexOptions.Compiled);
-
-    private static UniformType ParseUniformType(string s) => s switch {
-        "float" => UniformType.Float,
-        "uInt" => UniformType.UInt32,
-        "vec2" => UniformType.Vec2,
-        "vec3" => UniformType.Vec3,
-        "vec4" => UniformType.Vec4,
-        "mat4" => UniformType.Matrix4x4,
-        _ => throw new NotSupportedException($"Unknown shader uniform type {s}"),
-    };
 
     public static ShaderInputs Infer(string vertShaderSrc, string fragShaderSrc) {
         var attributes = attributeRegex.Matches(vertShaderSrc)
@@ -51,14 +39,7 @@ public class ShaderInfo {
                 "vec4" => new GLAttribute(d.Name, 4, GLAttribPtrType.Float32),
                 _ => throw new NotSupportedException($"Unknown shader attribute type {d.Type}"),
             }).ToArray();
-        var vertUniforms = uniformRegex.Matches(vertShaderSrc);
-        var fragUniforms = uniformRegex.Matches(fragShaderSrc);
-        var uniforms =
-            vertUniforms.Concat(fragUniforms)
-            .Select(m => new GLUniform(ParseUniformType(m.Groups["type"].Value), m.Groups["name"].Value))
-            .DistinctBy(u => u.Name)
-            .ToArray();
-        return new(attributes, uniforms);
+        return new(attributes);
     }
 }
 
@@ -127,19 +108,29 @@ public class GLShader : IDisposable {
         gl.UseProgram(Handle);
     }
 
-    public unsafe void SetUniform(string name, ShaderLanguage.Mat4 value) {
-        SetUniformMatrix(name, (float*)&value);
-    }
-
-    public unsafe void SetUniform(string name, Matrix4X4<float> value) {
-        SetUniformMatrix(name, (float*)&value);
-    }
-
-    private unsafe void SetUniformMatrix(string name, float* value) {
+    public int GetUniformLocation(string name) {
         int location = gl.GetUniformLocation(Handle, name);
         if (location == -1) {
             throw new UniformNotFoundException(name);
         }
+        return location;
+    }
+
+    public void SetUniform(int location, TextureUnit slot, GLTexture texture) {
+        texture.Bind(slot);
+        gl.Uniform1(location, (int)slot - (int)TextureUnit.Texture0);
+    }
+
+    public unsafe void SetUniform(int location, ShaderLanguage.Mat4 value) =>
+        SetUniformMatrix(location, (float*)&value);
+
+    public unsafe void SetUniform(string name, Matrix4X4<float> value) =>
+        SetUniformMatrix(GetUniformLocation(name), (float*)&value);
+
+    public unsafe void SetUniform(int location, Matrix4X4<float> value) =>
+        SetUniformMatrix(location, (float*)&value);
+
+    private unsafe void SetUniformMatrix(int location, float* value) {
         gl.UniformMatrix4(location, 1, false, value);
     }
 

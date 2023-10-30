@@ -122,7 +122,7 @@ class ShaderTests {
             try {
                 var classInfo = new ClassInfo { Type = sym, Syntax = c };
                 if (ShaderAnalyze.Process(diagnostics, classInfo, out var shaderInfo)) {
-                    r.Output = CodegenCSharp.GenerateClassExtension(shaderInfo, model);
+                    r.Output = CodegenCSharp.GenerateClassExtension(diagnostics, shaderInfo, model);
                 }
             }
             catch (ShaderGenException e) {

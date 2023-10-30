@@ -6,6 +6,8 @@ using Silk.NET.Maths;
 
 namespace DrawStuff;
 
+using SpriteVert = SpriteShader.VertexData;
+
 public record struct TextRaster(byte[] Data, int Width, int Height);
 
 public record BakedFont(
@@ -26,16 +28,20 @@ public class Font {
     private const int FontBitmapWidth = 1024;
     private const int FontBitmapHeight = 1024;
 
-    public static void DrawText(SpriteBuffer sb, Vector2D<float> pos, BakedFont font, string text) {
+    public static void DrawText(ShapeBuilder<SpriteVert, Triangle> b, Vector2D<float> pos, BakedFont font, string text) {
         var (tw, th) = ((float)font.Texture.Width, (float)font.Texture.Height);
         foreach (char c in text) {
             if (font.charMap.TryGetValue(c, out int i)) {
                 var bounds = font.GlyphBounds[i].As<float>();
                 var offset = pos + font.Cropping[i].Origin.As<float>();
-                sb.PushQuad(
-                    offset.X, offset.Y, bounds.Size.X, bounds.Size.Y,
+                b.PushQuad(
+                    offset.X,
+                    offset.Y,
+                    bounds.Size.X,
+                    bounds.Size.Y,
                     bounds.Origin.X / tw, bounds.Origin.Y / th, bounds.Size.X / tw, bounds.Size.Y / th,
-                    Colour.White);
+                    (xPos, yPos, xTex, yTex) =>
+                        new SpriteVert(new(xPos, yPos), new(xTex, yTex), Colour.White.RGBA));
                 var kerning = font.Kerning[i].Z;
                 pos += new Vector2D<float>(bounds.Size.X + kerning, 0);
             }

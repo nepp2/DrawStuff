@@ -51,20 +51,26 @@ public record CodegenOutput(string CSharpTemplate, string CSharpSrc, string Vert
 
 public class CodegenCSharp {
 
+    private List<Diagnostic> errors { get; }
+
+    public CodegenCSharp(List<Diagnostic> errors) { this.errors = errors; }
+
     private static string ToCSharpType(ValType t) => t switch {
-        ValType.Float => $"float",
-        ValType.Vec2 => $"Vec2",
-        ValType.Vec3 => $"Vec3",
-        ValType.Vec4 => $"Vec4",
-        ValType.UInt32 => $"UInt32",
-        ValType.Mat4 => $"Mat4",
-        ValType.RGBA => $"RGBA",
-        ValType.VertexPos => $"VertexPos",
+        ValType.Float => "float",
+        ValType.Vec2 => "Vec2",
+        ValType.Vec3 => "Vec3",
+        ValType.Vec4 => "Vec4",
+        ValType.UInt32 => "UInt32",
+        ValType.Mat4 => "Mat4",
+        ValType.RGBA => "RGBA",
+        ValType.VertexPos => "VertexPos",
+        ValType.TextureHandle => "GLTexture",
         _ => throw new ShaderGenException("Unknown value type"),
     };
 
     private static (string PtrType, int NumVals) GetVertexAttribInfo(ValType type) {
         return type switch {
+
             ValType.Float => ("GLAttribPtrType.Float32", 1),
             ValType.Vec2 => ("GLAttribPtrType.Float32", 2),
             ValType.Vec3 => ("GLAttribPtrType.Float32", 3),
@@ -72,15 +78,22 @@ public class CodegenCSharp {
                 ("GLAttribPtrType.Float32", 4),
             ValType.UInt32 => ("GLAttribPtrType.Uint32", 1),
             ValType.Mat4 => ("GLAttribPtrType.Float32", 16),
-            _ => throw new ShaderGenException("Unknown value type"),
+
+            ValType.TextureHandle =>
+                throw new ShaderGenException("Can't pass textures as vertex data"),
+            _ =>
+                throw new ShaderGenException("Unknown value type"),
         };
     }
 
     private static SrcNode GenerateConstructor(string className, ArgumentInfo[] args) {
         if (args.Any()) {
             string argDefs = string.Join(", ", args.Select(a => $"{ToCSharpType(a.Type)} {a.Name}"));
-            string assignments = string.Join(" ", args.Select(a => $"this.{a.Name} = {a.Name};"));
-            return $"public {className}({argDefs}) {{ {assignments} }}";
+            return Src.Inline(
+                $"public {className}({argDefs}) {{",
+                Src.Indent(args.Select(a => $"this.{a.Name} = {a.Name};")),
+                @"}"
+            );
         }
         return Src.Empty();
     }
@@ -119,13 +132,24 @@ public class CodegenCSharp {
         }
     }
 
+    static SrcNode GenerateSetVarStatement(int index, ref int nextTextureSlot, ValType type, string value) {
+        if (type is ValType.TextureHandle) {
+            int slot = nextTextureSlot++;
+            return $"shader.SetUniform(varLocations[{index}], TextureUnit.Texture{slot}, {value});";
+        }
+        else {
+            return $"shader.SetUniform(varLocations[{index}], {value});";
+        }
+    }
+
     private static (string varType, SrcNode code) GenerateVarsCode(ArgumentInfo[] globals) {
+        int nextTextureSlot = 0;
         if (globals.Length == 1) {
             var g = globals[0];
             var varType = ToCSharpType(g.Type);
             var code = Src.Inline(
-                $"public static void SetShaderVars(GLShader shader, in {varType} v) {{",
-                $"    shader.SetUniform(\"{g.Name}\", v);",
+                $"public static void SetShaderVars(GLShader shader, int[] varLocations, in {varType} v) {{",
+                Src.Indent(GenerateSetVarStatement(0, ref nextTextureSlot, g.Type, "v")),
                 @"}",
                 @""
             );
@@ -141,8 +165,8 @@ public class CodegenCSharp {
                 ),
                 @"}",
                 @"",
-                @"public static void SetShaderVars(GLShader shader, in Vars v) {",
-                    Src.Indent(globals.Select(g => $"shader.SetUniform(\"{g.Name}\", v.{g.Name});")),
+                @"public static void SetShaderVars(GLShader shader, int[] varLocations, in Vars v) {",
+                Src.Indent(globals.Select((g, i) => GenerateSetVarStatement(i, ref nextTextureSlot, g.Type, $"v.{g.Name}"))),
                 @"}",
                 @""
             );
@@ -150,17 +174,44 @@ public class CodegenCSharp {
         }
     }
 
-    public static CodegenOutput GenerateClassExtension(ShaderAnalyze info, SemanticModel model) {
-        var vertexSrc = CodegenGLSL.Compile(model, CompileMode.VertexEntryPoint, info.Vertex, info.Globals);
-        var fragmentSrc = CodegenGLSL.Compile(model, CompileMode.FragmentEntryPoint, info.Fragment, info.Globals);
+    public static CodegenOutput GenerateClassExtension(List<Diagnostic> errors, ShaderAnalyze info, SemanticModel model) {
+        var cg = new CodegenCSharp(errors);
+        return cg.GenerateClassExtension(info, model);
+    }
+
+    private CodegenOutput GenerateClassExtension(ShaderAnalyze info, SemanticModel model) {
+        var vertexSrc = CodegenGLSL.Compile(errors, model, CompileMode.VertexEntryPoint, info.Vertex, info.Globals);
+        var fragmentSrc = CodegenGLSL.Compile(errors, model, CompileMode.FragmentEntryPoint, info.Fragment, info.Globals);
 
         var (vertexType, vertexTypeDef) = GenerateVertexCode(info.Vertex.Inputs);
         var (varsType, varsCode) = GenerateVarsCode(info.Globals);
 
+        var classDef = Src.Inline(
+            $"public static partial class {info.Sym.Name} {{",
+            Src.Indent(
+                $"public const string VertexSource = @\"[[VERTEX_SRC]]\";",
+                $"public const string FragmentSource = @\"[[FRAGMENT_SRC]]\";",
+                @"",
+                @"public static readonly string[] VarNames = new string[] {",
+                $"    {string.Join(", ", info.Globals.Select(g => $"\"{g.Name}\""))}",
+                @"};",
+                @"",
+                vertexTypeDef,
+                varsCode,
+                $"public static ShaderConfig<{vertexType}, {varsType}> Config =>",
+                @"    new(VertexSource, FragmentSource, SetShaderVars, VarNames, VertexAttributes);"
+            ),
+            @"}"
+        );
+
         var shaderNamespace = info.Sym.ContainingNamespace;
-        SrcNode namespaceDecl = shaderNamespace.IsGlobalNamespace
-            ? Src.Inline()
-            : Src.Inline($"namespace {shaderNamespace.ToDisplayString()};", "");
+        if(!shaderNamespace.IsGlobalNamespace) {
+            classDef = Src.Inline(
+                $"namespace {shaderNamespace.ToDisplayString()} {{",
+                Src.Indent(classDef),
+                @"}"
+            );
+        }
 
         var source = Src.Root(
             "using System.Runtime.InteropServices;",
@@ -168,18 +219,7 @@ public class CodegenCSharp {
             "using DrawStuff;",
             "using static DrawStuff.ShaderLanguage;",
             "",
-            namespaceDecl,
-            $"public static partial class {info.Sym.Name} {{",
-            Src.Indent(
-                $"public const string VertexSource = @\"[[VERTEX_SRC]]\";",
-                $"public const string FragmentSource = @\"[[FRAGMENT_SRC]]\";",
-                @"",
-                vertexTypeDef,
-                varsCode,
-                $"public static ShaderConfig<{vertexType}, {varsType}> Config =>",
-                @"    new(VertexSource, FragmentSource, SetShaderVars, VertexAttributes);"
-            ),
-            @"}"
+            classDef
         );
 
         var sb = new StringBuilder();

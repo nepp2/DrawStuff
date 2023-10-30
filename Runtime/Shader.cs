@@ -3,20 +3,37 @@ using System.Runtime.InteropServices;
 
 namespace DrawStuff;
 
-public class Shader<Vertex, Vars>
-    where Vertex : unmanaged where Vars : unmanaged
-{
-    public delegate void SetShaderVars(GLShader shader, in Vars v);
+public delegate void SetShaderVarsFunc<Vars>(GLShader shader, int[] varLocations, in Vars v);
 
+public record ShaderConfig(
+    string VertexSrc,
+    string FragmentSrc,
+    string[] Vars,
+    GLAttribute[] VertexAttribs);
+
+public record ShaderConfig<Vertex, Vars>(
+    string VertexSrc,
+    string FragmentSrc,
+    SetShaderVarsFunc<Vars> SetVars,
+    string[] Vars,
+    GLAttribute[] VertexAttribs)
+        : ShaderConfig(VertexSrc, FragmentSrc, Vars, VertexAttribs)
+        where Vertex : unmanaged;
+
+public class Shader<Vertex, Vars>
+    where Vertex : unmanaged
+{
     private DrawStuffGL draw;
     private GLShader shader;
     private ShaderConfig<Vertex, Vars> config;
+    private int[] uniformLocations;
 
     public Shader(DrawStuffGL draw, ShaderConfig<Vertex, Vars> config) {
         this.draw = draw;
         this.config = config;
         var gl = draw.GetGL();
         shader = GLShader.Compile(gl, config.VertexSrc, config.FragmentSrc);
+        uniformLocations = config.Vars.Select(shader.GetUniformLocation).ToArray();
     }
 
     public ShapeArray<Vertex, ShapeType> CreateShapeArray<ShapeType>()
@@ -47,7 +64,7 @@ public class Shader<Vertex, Vars>
         where ShapeType : unmanaged 
     {
         shader.Bind();
-        config.SetVars(shader, vars);
+        config.SetVars(shader, uniformLocations, vars);
         var glShapes = (ShapeArrayGL<Vertex, ShapeType>)shapes;
         var vertexArray = glShapes.VertexArray;
         int indicesPerShape = Marshal.SizeOf<ShapeType>() / sizeof(uint);

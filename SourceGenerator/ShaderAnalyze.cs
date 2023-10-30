@@ -17,6 +17,7 @@ public enum ValType {
     Mat4,
     RGBA,
     VertexPos,
+    TextureHandle,
 }
 
 public enum ArgKind {
@@ -93,22 +94,18 @@ public class ShaderAnalyze {
         return Fail(out result);
     }
 
-    public static ValType? ToShaderType(ITypeSymbol sym) {
-        if (sym is INamedTypeSymbol type) {
-            switch (type.ToDisplayString()) {
-                case "System.Single" or "float": return ValType.Float;
-                case "System.UInt32": return ValType.UInt32;
-                case "DrawStuff.ShaderLanguage.Vec2": return ValType.Vec2;
-                case "DrawStuff.ShaderLanguage.Vec3": return ValType.Vec3;
-                case "DrawStuff.ShaderLanguage.Vec4": return ValType.Vec4;
-                case "DrawStuff.ShaderLanguage.Mat4": return ValType.Mat4;
-                case "DrawStuff.ShaderLanguage.RGBA": return ValType.RGBA;
-                case "DrawStuff.ShaderLanguage.VertexPos": return ValType.VertexPos;
-                default: break;
-            };
-        }
-        return null;
-    }
+    public static ValType? ToShaderType(ITypeSymbol sym) => sym.ToDisplayString() switch {
+        "System.Single" or "float" => ValType.Float,
+        "System.UInt32" or "uint" => ValType.UInt32,
+        "DrawStuff.ShaderLanguage.Vec2" => ValType.Vec2,
+        "DrawStuff.ShaderLanguage.Vec3" => ValType.Vec3,
+        "DrawStuff.ShaderLanguage.Vec4" => ValType.Vec4,
+        "DrawStuff.ShaderLanguage.Mat4" => ValType.Mat4,
+        "DrawStuff.ShaderLanguage.RGBA" => ValType.RGBA,
+        "DrawStuff.ShaderLanguage.VertexPos" => ValType.VertexPos,
+        "DrawStuff.ShaderLanguage.TextureHandle" => ValType.TextureHandle,
+        _ => null,
+    };
 
     private bool ValidateType(ITypeSymbol sym, Location loc, out ValType r) {
         if(ToShaderType(sym) is ValType t)

@@ -16,7 +16,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="BasicShader.cs" />
+    <EmbeddedResource Include="Shaders\BasicShader.cs" />
+    <EmbeddedResource Include="..\..\Runtime\SpriteBuffer\SpriteShader.cs" />
   </ItemGroup>
 
   <ItemGroup>

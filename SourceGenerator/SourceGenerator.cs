@@ -55,7 +55,7 @@ public class ShaderGenerator : ISourceGenerator {
             try {
                 var classInfo = new ClassInfo{ Type = s, Syntax = c };
                 if(ShaderAnalyze.Process(Errors, classInfo, out var shaderInfo)) {
-                    var output = CodegenCSharp.GenerateClassExtension(shaderInfo, context.SemanticModel);
+                    var output = CodegenCSharp.GenerateClassExtension(Errors, shaderInfo, context.SemanticModel);
                     var filename = $"ShaderGen__{shaderInfo.Sym.Name}.g.cs";
                     ClassExtensionFiles[filename] = SourceText.From(output.CSharpSrc, Encoding.UTF8);
                 }
