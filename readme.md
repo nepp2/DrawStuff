@@ -23,7 +23,7 @@ partial class BasicShader {
     Mat4 transform;
 
     Vec4 Vertex(Vec3 pos) =>
-        transform * vec4(pos.x, pos.y, pos.z, 1f);
+        transform * vec4(pos, 1f);
 
     RGBA Fragment() =>
         rgba(1, 1, 1, 1);

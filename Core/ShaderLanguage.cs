@@ -90,8 +90,19 @@ public interface ShaderLanguage {
     }
 
     public static Vec2 vec2(float x, float y) => throw new NotImplementedException();
+
     public static Vec3 vec3(float x, float y, float z) => throw new NotImplementedException();
+    public static Vec3 vec3(Vec2 xy, float z) => throw new NotImplementedException();
+    public static Vec3 vec3(float x, Vec2 yz) => throw new NotImplementedException();
+
     public static Vec4 vec4(float x, float y, float z, float w) => throw new NotImplementedException();
+    public static Vec4 vec4(Vec3 xyz, float w) => throw new NotImplementedException();
+    public static Vec4 vec4(float x, Vec3 yzw) => throw new NotImplementedException();
+    public static Vec4 vec4(Vec2 xy, float z, float w) => throw new NotImplementedException();
+    public static Vec4 vec4(float x, float y, Vec2 zw) => throw new NotImplementedException();
+    public static Vec4 vec4(Vec2 xy, Vec2 zw) => throw new NotImplementedException();
+    public static Vec4 vec4(float x, Vec2 yz, float w) => throw new NotImplementedException();
+
     public static RGBA rgba(float r, float g, float b, float a) => throw new NotImplementedException();
 
     public static float sqrt(float v) => throw new NotImplementedException();

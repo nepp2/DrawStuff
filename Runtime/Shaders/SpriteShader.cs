@@ -1,6 +1,6 @@
-﻿using static DrawStuff.ShaderLanguage;
-
-namespace DrawStuff; 
+﻿
+namespace DrawStuff;
+using static DrawStuff.ShaderLanguage;
 
 [ShaderProgram]
 partial class SpriteShader {
@@ -11,7 +11,7 @@ partial class SpriteShader {
 
     public ShadeInput Vertex(Vec2 pos, Vec2 tc, uint col) {
         var tint = vec4(col >> 24, (col >> 16) & 255u, (col >> 8) & 255u, col & 255u) / 255f;
-        return new(transform * vec4(pos.x, pos.y, 0, 1), tc, tint);
+        return new(transform * vec4(pos, 0, 1), tc, tint);
     }
 
     public RGBA Fragment(ShadeInput v) {
