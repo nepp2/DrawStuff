@@ -53,14 +53,12 @@ window.Load += OnWindowLoad;
 window.Run();
 
 [ShaderProgram]
-public static partial class BasicShader {
-    static Mat4 transform;
+partial class BasicShader {
+    Mat4 transform;
 
-    public static void Vertex(in Vec2 pos, out VertexPos vertPos) {
-        vertPos = transform * new Vec4(pos.x, pos.y, 0f, 1f);
-    }
+    public Vec4 Vertex(Vec2 pos) =>
+        transform * vec4(pos.x, pos.y, 0f, 1f);
 
-    public static void Fragment(out RGBA colour) {
-        colour = new(1, 1, 1, 1);
-    }
+    public RGBA Fragment() =>
+        rgba(1, 1, 1, 1);
 }

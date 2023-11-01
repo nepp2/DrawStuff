@@ -15,13 +15,54 @@ public struct SrcNode {
     string? TryString() => Obj as string;
     SrcList? TryList() => Obj as SrcList;
 
-    public void Write(StringBuilder sb, int indent = 0) {
+    public void WriteTree(StringBuilder sb) {
+        WriteFreshLine(sb, 0);
+    }
+
+    private void WriteFreshLine(StringBuilder sb, int indent) {
         if (TryString() is string line) {
-            for (int i = 0; i < indent; ++i) sb.Append("    ");
+            for (int i = 0; i < indent; ++i)
+                sb.Append("    ");
             sb.AppendLine(line);
         }
         else if (TryList() is SrcList t) {
-            t.Write(sb, indent);
+            if (t.MultiLine) {
+                foreach (var n in t.Nodes) {
+                    n.WriteFreshLine(sb, indent + t.Indent);
+                }
+            }
+            else {
+                for (int i = 0; i < indent; ++i)
+                    sb.Append("    ");
+                foreach (var n in t.Nodes) {
+                    n.AppendCurrentLine(sb, indent);
+                }
+                sb.AppendLine();
+            }
+        }
+        else {
+            throw new ShaderGenException("Unexpected element in source tree");
+        }
+    }
+
+    private void AppendCurrentLine(StringBuilder sb, int indent) {
+        if (TryString() is string line) {
+            sb.Append(line);
+        }
+        else if (TryList() is SrcList t) {
+            if (t.MultiLine) {
+                sb.AppendLine();
+                foreach (var n in t.Nodes) {
+                    n.WriteFreshLine(sb, indent + t.Indent);
+                }
+                for (int i = 0; i < indent; ++i)
+                    sb.Append("    ");
+            }
+            else {
+                foreach (var n in t.Nodes) {
+                    n.AppendCurrentLine(sb, indent);
+                }
+            }
         }
         else {
             throw new ShaderGenException("Unexpected element in source tree");
@@ -29,21 +70,27 @@ public struct SrcNode {
     }
 }
 
-public record SrcList(int Indent, SrcNode[] Nodes) {
-    public void Write(StringBuilder sb, int indent) {
-        foreach (var n in Nodes) {
-            n.Write(sb, indent + Indent);
+public static class EnumerableSeparatorJoin {
+    public static IEnumerable<T> WithSeparator<T>(this IEnumerable<T> seq, T sep) {
+        bool join = false;
+        foreach(var v in seq) {
+            if (join) yield return sep;
+            else join = true;
+            yield return v;
         }
     }
 }
 
+public record SrcList(int Indent, bool MultiLine, SrcNode[] Nodes);
 public class Src {
-    public static SrcNode Root(params SrcNode[] ns) => new SrcList(0, ns);
-    public static SrcNode Inline(params SrcNode[] ns) => new SrcList(0, ns);
-    public static SrcNode Empty() => Inline();
-    public static SrcNode Indent(params SrcNode[] ns) => new SrcList(1, ns);
-    public static SrcNode Indent(IEnumerable<SrcNode> ns) => new SrcList(1, ns.ToArray());
-    public static SrcNode Indent(IEnumerable<string> ns) => new SrcList(1, ns.Select(s => (SrcNode)s).ToArray());
+    public static SrcNode Root(params SrcNode[] ns) => new SrcList(0, true, ns);
+    public static SrcNode Lines(params SrcNode[] ns) => new SrcList(0, true, ns);
+    public static SrcNode Expr(params SrcNode[] ns) => new SrcList(0, false, ns);
+    public static SrcNode Expr(IEnumerable<SrcNode> ns) => new SrcList(0, false, ns.ToArray());
+    public static SrcNode Empty() => Lines();
+    public static SrcNode Indent(params SrcNode[] ns) => new SrcList(1, true, ns);
+    public static SrcNode Indent(IEnumerable<SrcNode> ns) => new SrcList(1, true, ns.ToArray());
+    public static SrcNode Indent(IEnumerable<string> ns) => new SrcList(1, true, ns.Select(s => (SrcNode)s).ToArray());
 }
 
 
@@ -55,41 +102,48 @@ public class CodegenCSharp {
 
     public CodegenCSharp(List<Diagnostic> errors) { this.errors = errors; }
 
-    private static string ToCSharpType(ValType t) => t switch {
-        ValType.Float => "float",
-        ValType.Vec2 => "Vec2",
-        ValType.Vec3 => "Vec3",
-        ValType.Vec4 => "Vec4",
-        ValType.UInt32 => "UInt32",
-        ValType.Mat4 => "Mat4",
-        ValType.RGBA => "RGBA",
-        ValType.VertexPos => "VertexPos",
-        ValType.TextureHandle => "GLTexture",
+    private static string ToCSharpType(ValueType t) => t switch {
+        FloatType => "float",
+        Vec2Type => "Vec2",
+        Vec3Type => "Vec3",
+        Vec4Type => "Vec4",
+        UInt32Type => "uint",
+        Mat4Type => "Mat4",
+        RGBAType => "RGBA",
+        TextureType => "GLTexture",
+        CustomStruct cs => cs.Name,
         _ => throw new ShaderGenException("Unknown value type"),
     };
 
-    private static (string PtrType, int NumVals) GetVertexAttribInfo(ValType type) {
+    private void Error(string msg, Location loc) {
+        errors.Add(Diagnostic.Create(ShaderDiagnostic.InvalidShader, loc, msg));
+    }
+
+    (string, int) ErrorAttrib(string msg, Location loc) {
+        Error(msg, loc);
+        return ("GLAttribPtrType.Float32", 1);
+    }
+
+    private (string PtrType, int NumVals) GetVertexAttribInfo(ValueType type, Location loc) {
         return type switch {
-
-            ValType.Float => ("GLAttribPtrType.Float32", 1),
-            ValType.Vec2 => ("GLAttribPtrType.Float32", 2),
-            ValType.Vec3 => ("GLAttribPtrType.Float32", 3),
-            ValType.Vec4 or ValType.RGBA or ValType.VertexPos =>
+            FloatType => ("GLAttribPtrType.Float32", 1),
+            Vec2Type => ("GLAttribPtrType.Float32", 2),
+            Vec3Type => ("GLAttribPtrType.Float32", 3),
+            Vec4Type or RGBAType =>
                 ("GLAttribPtrType.Float32", 4),
-            ValType.UInt32 => ("GLAttribPtrType.Uint32", 1),
-            ValType.Mat4 => ("GLAttribPtrType.Float32", 16),
+            UInt32Type => ("GLAttribPtrType.Uint32", 1),
+            Mat4Type => ("GLAttribPtrType.Float32", 16),
 
-            ValType.TextureHandle =>
-                throw new ShaderGenException("Can't pass textures as vertex data"),
-            _ =>
-                throw new ShaderGenException("Unknown value type"),
+            TextureType => ErrorAttrib("Can't pass textures as vertex data", loc),
+            CustomStruct => ErrorAttrib("Can't pass custom structs as vertex data", loc),
+            _ => ErrorAttrib("Unknown value type", loc),
         };
     }
 
     private static SrcNode GenerateConstructor(string className, ArgumentInfo[] args) {
         if (args.Any()) {
             string argDefs = string.Join(", ", args.Select(a => $"{ToCSharpType(a.Type)} {a.Name}"));
-            return Src.Inline(
+            return Src.Lines(
                 $"public {className}({argDefs}) {{",
                 Src.Indent(args.Select(a => $"this.{a.Name} = {a.Name};")),
                 @"}"
@@ -101,11 +155,11 @@ public class CodegenCSharp {
     private static SrcNode ToFieldDef(ArgumentInfo arg) =>
         $"public {ToCSharpType(arg.Type)} {arg.Name};";
 
-    private static (string vertexType, SrcNode src) GenerateVertexCode(ArgumentInfo[] vertexInputs) {
-        var vertexAttribs = Src.Inline(
+    private (string vertexType, SrcNode src) GenerateVertexCode(ArgumentInfo[] vertexInputs) {
+        var vertexAttribs = Src.Lines(
             @"public static readonly GLAttribute[] VertexAttributes = new GLAttribute[] {",
             Src.Indent(vertexInputs.Select(v => {
-                var attrib = GetVertexAttribInfo(v.Type);
+                var attrib = GetVertexAttribInfo(v.Type, v.Loc);
                 return $"new (\"{v.Name}\", {attrib.NumVals}, {attrib.PtrType}),";
             })),
             @"};",
@@ -115,11 +169,11 @@ public class CodegenCSharp {
             return (ToCSharpType(vertexInputs[0].Type), vertexAttribs);
         }
         else {
-            var typeDef = Src.Inline(
+            var typeDef = Src.Lines(
                 @"[StructLayout(LayoutKind.Sequential)]",
                 @"public struct VertexData {",
                 Src.Indent(
-                    Src.Inline(vertexInputs.Select(ToFieldDef).ToArray()),
+                    Src.Lines(vertexInputs.Select(ToFieldDef).ToArray()),
                     "",
                     GenerateConstructor("VertexData", vertexInputs)
                 ),
@@ -132,8 +186,8 @@ public class CodegenCSharp {
         }
     }
 
-    static SrcNode GenerateSetVarStatement(int index, ref int nextTextureSlot, ValType type, string value) {
-        if (type is ValType.TextureHandle) {
+    static SrcNode GenerateSetVarStatement(int index, ref int nextTextureSlot, ValueType type, string value) {
+        if (type is TextureType) {
             int slot = nextTextureSlot++;
             return $"shader.SetUniform(varLocations[{index}], TextureUnit.Texture{slot}, {value});";
         }
@@ -147,7 +201,7 @@ public class CodegenCSharp {
         if (globals.Length == 1) {
             var g = globals[0];
             var varType = ToCSharpType(g.Type);
-            var code = Src.Inline(
+            var code = Src.Lines(
                 $"public static void SetShaderVars(GLShader shader, int[] varLocations, in {varType} v) {{",
                 Src.Indent(GenerateSetVarStatement(0, ref nextTextureSlot, g.Type, "v")),
                 @"}",
@@ -156,10 +210,10 @@ public class CodegenCSharp {
             return (varType, code);
         }
         else {
-            var code = Src.Inline(
+            var code = Src.Lines(
                 @"public struct Vars {",
                 Src.Indent(
-                    Src.Inline(globals.Select(ToFieldDef).ToArray()),
+                    Src.Lines(globals.Select(ToFieldDef).ToArray()),
                     "",
                     GenerateConstructor("Vars", globals)
                 ),
@@ -174,20 +228,20 @@ public class CodegenCSharp {
         }
     }
 
-    public static CodegenOutput GenerateClassExtension(List<Diagnostic> errors, ShaderAnalyze info, SemanticModel model) {
+    public static CodegenOutput GenerateClassExtension(List<Diagnostic> errors, ShaderInfo info, SemanticModel model) {
         var cg = new CodegenCSharp(errors);
         return cg.GenerateClassExtension(info, model);
     }
 
-    private CodegenOutput GenerateClassExtension(ShaderAnalyze info, SemanticModel model) {
-        var vertexSrc = CodegenGLSL.Compile(errors, model, CompileMode.VertexEntryPoint, info.Vertex, info.Globals);
-        var fragmentSrc = CodegenGLSL.Compile(errors, model, CompileMode.FragmentEntryPoint, info.Fragment, info.Globals);
+    private CodegenOutput GenerateClassExtension(ShaderInfo info, SemanticModel model) {
+        var vertexSrc = CodegenGLSL.Compile(errors, model, CompileMode.VertexEntryPoint, info, info.Vertex);
+        var fragmentSrc = CodegenGLSL.Compile(errors, model, CompileMode.FragmentEntryPoint, info, info.Fragment);
 
         var (vertexType, vertexTypeDef) = GenerateVertexCode(info.Vertex.Inputs);
         var (varsType, varsCode) = GenerateVarsCode(info.Globals);
 
-        var classDef = Src.Inline(
-            $"public static partial class {info.Sym.Name} {{",
+        var classDef = Src.Lines(
+            $"public partial class {info.Sym.Name} {{",
             Src.Indent(
                 $"public const string VertexSource = @\"[[VERTEX_SRC]]\";",
                 $"public const string FragmentSource = @\"[[FRAGMENT_SRC]]\";",
@@ -206,7 +260,7 @@ public class CodegenCSharp {
 
         var shaderNamespace = info.Sym.ContainingNamespace;
         if(!shaderNamespace.IsGlobalNamespace) {
-            classDef = Src.Inline(
+            classDef = Src.Lines(
                 $"namespace {shaderNamespace.ToDisplayString()} {{",
                 Src.Indent(classDef),
                 @"}"
@@ -223,7 +277,7 @@ public class CodegenCSharp {
         );
 
         var sb = new StringBuilder();
-        source.Write(sb);
+        source.WriteTree(sb);
         var template = sb.ToString();
 
         sb.Replace("[[VERTEX_SRC]]", vertexSrc);

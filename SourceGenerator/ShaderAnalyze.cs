@@ -5,41 +5,46 @@ using System.Diagnostics;
 using System.Collections.Generic;
 using System.Linq;
 using System;
+using System.Collections.Immutable;
+using System.Reflection;
 
 namespace ShaderCompiler;
 
-public enum ValType {
-    Float,
-    Vec2,
-    Vec3,
-    Vec4,
-    UInt32,
-    Mat4,
-    RGBA,
-    VertexPos,
-    TextureHandle,
+public interface ValueType {}
+public interface BuiltinType : ValueType {}
+
+public record FloatType() : BuiltinType;
+public record Vec2Type() : BuiltinType;
+public record Vec3Type() : BuiltinType;
+public record Vec4Type() : BuiltinType;
+public record UInt32Type() : BuiltinType;
+public record Mat4Type() : BuiltinType;
+public record RGBAType() : BuiltinType;
+public record TextureType() : BuiltinType;
+
+public static class BuiltinTypes {
+    public static FloatType Float = new FloatType();
+    public static Vec2Type Vec2 = new Vec2Type();
+    public static Vec3Type Vec3 = new Vec3Type();
+    public static Vec4Type Vec4 = new Vec4Type();
+    public static UInt32Type UInt32 = new UInt32Type();
+    public static Mat4Type Mat4 = new Mat4Type();
+    public static RGBAType RGBA = new RGBAType();
+    public static TextureType Texture = new TextureType();
 }
 
-public enum ArgKind {
-    Input,
-    Output,
-    Global,
-}
+public record CustomStruct(string Name, ImmutableArray<(string, ValueType)> Fields) : ValueType;
 
-public struct ClassInfo {
-    public ITypeSymbol Type;
-    public ClassDeclarationSyntax Syntax;
-}
+public record struct ClassInfo(ITypeSymbol Type, ClassDeclarationSyntax Syntax, SemanticModel Model);
 
-public record struct ArgumentInfo(ArgKind Kind, string Name, ValType Type, Location Loc);
+public record struct ArgumentInfo(string Name, ValueType Type, Location Loc);
 
-public class MethodInfo {
-    public IMethodSymbol Sym;
-    public ArgumentInfo[] Inputs;
-    public ArgumentInfo[] Outputs;
-}
+public record MethodInfo(IMethodSymbol Sym, ArgumentInfo[] Inputs, ValueType Output);
 
-public class Diagnostics {
+// TODO: deal with this warning properly
+[System.Diagnostics.CodeAnalysis.SuppressMessage("MicrosoftCodeAnalysisReleaseTracking", "RS2008")]
+public class ShaderDiagnostic {
+
     public static DiagnosticDescriptor InvalidShader =
         new DiagnosticDescriptor(id: "SHDRGN001",
             title: "Invalid shader",
@@ -47,35 +52,89 @@ public class Diagnostics {
             category: "ShaderGen",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
+
+    public static DiagnosticDescriptor DebugDiagnostic =
+        new DiagnosticDescriptor(id: "SHDRGN002",
+            title: "Debug info",
+            messageFormat: "{0}",
+            category: "ShaderGen",
+            DiagnosticSeverity.Info,
+            isEnabledByDefault: true);
+
+}
+
+public record ShaderInfo(
+    ITypeSymbol Sym, ClassDeclarationSyntax Syntax,
+    MethodInfo Vertex, MethodInfo Fragment, ArgumentInfo[] Globals,
+    ShaderTypes Types);
+
+public class ShaderTypes {
+
+    public Dictionary<string, CustomStruct> CustomStructs = new();
+
+    public ValueType? ToBuiltinType(ITypeSymbol sym) => sym.ToDisplayString() switch {
+        "System.Single" or "float" => BuiltinTypes.Float,
+        "System.UInt32" or "uint" => BuiltinTypes.UInt32,
+        "DrawStuff.ShaderLanguage.Vec2" => BuiltinTypes.Vec2,
+        "DrawStuff.ShaderLanguage.Vec3" => BuiltinTypes.Vec3,
+        "DrawStuff.ShaderLanguage.Vec4" => BuiltinTypes.Vec4,
+        "DrawStuff.ShaderLanguage.Mat4" => BuiltinTypes.Mat4,
+        "DrawStuff.ShaderLanguage.RGBA" => BuiltinTypes.RGBA,
+        "DrawStuff.ShaderLanguage.Texture" => BuiltinTypes.Texture,
+        _ => null,
+    };
+
+    public ValueType? TryGet(ITypeSymbol sym) {
+        ValueType? t = ToBuiltinType(sym);
+        if (t is null) {
+            if (CustomStructs.TryGetValue(sym.ToDisplayString(), out var cs)) {
+                t = cs;
+            }
+        }
+        return t;
+    }
 }
 
 public class ShaderAnalyze {
 
-    private GeneratorExecutionContext Ctx { get; }
     public ITypeSymbol Sym { get; }
     public ClassDeclarationSyntax Syntax { get; }
-    private Dictionary<string, ISymbol> Members;
+    private List<ISymbol> Members = new();
     private List<Diagnostic> Errors;
+    private ShaderTypes Types = new();
 
-    public MethodInfo Vertex;
-    public MethodInfo Fragment;
-    public ArgumentInfo[] Globals;
-
-    public ShaderAnalyze(List<Diagnostic> errors, ClassInfo c) {
+    public ShaderAnalyze(List<Diagnostic> diagnostics, ClassInfo c) {
         Sym = c.Type;
         Syntax = c.Syntax;
-        Members = c.Type.GetMembers().ToDictionary(m => m.Name);
-        Errors = errors;
-        Process();
+        Errors = diagnostics;
+        foreach(var m in c.Type.GetMembers()) {
+            bool include = m.DeclaringSyntaxReferences.Any(s => s.SyntaxTree == c.Syntax.SyntaxTree);
+            if (include) {
+                Members.Add(m);
+            }
+        }
+    }
+
+    private SyntaxNode? GetLocalDeclaration(ISymbol sym) {
+        foreach (var n in sym.DeclaringSyntaxReferences) {
+            if (n.SyntaxTree == Syntax.SyntaxTree)
+                return n.GetSyntax();
+        }
+        return null;
+    }
+
+    private Location SymbolLoc(ISymbol sym) {
+        if (GetLocalDeclaration(sym) is SyntaxNode n)
+            return n.GetLocation();
+        return Syntax.GetLocation();
     }
 
     private void Error(string message, Location? loc = null) {
-        Errors.Add(Diagnostic.Create(Diagnostics.InvalidShader, loc ?? Sym.Locations[0], message));
+        Errors.Add(Diagnostic.Create(ShaderDiagnostic.InvalidShader, loc ?? Syntax.GetLocation(), message));
     }
 
-    class Methods {
-        public IMethodSymbol Vert;
-        public IMethodSymbol Frag;
+    private void Error(string message, ISymbol sym) {
+        Errors.Add(Diagnostic.Create(ShaderDiagnostic.InvalidShader, SymbolLoc(sym), message));
     }
 
     bool Success<T>(out T result, in T val) {
@@ -94,107 +153,129 @@ public class ShaderAnalyze {
         return Fail(out result);
     }
 
-    public static ValType? ToShaderType(ITypeSymbol sym) => sym.ToDisplayString() switch {
-        "System.Single" or "float" => ValType.Float,
-        "System.UInt32" or "uint" => ValType.UInt32,
-        "DrawStuff.ShaderLanguage.Vec2" => ValType.Vec2,
-        "DrawStuff.ShaderLanguage.Vec3" => ValType.Vec3,
-        "DrawStuff.ShaderLanguage.Vec4" => ValType.Vec4,
-        "DrawStuff.ShaderLanguage.Mat4" => ValType.Mat4,
-        "DrawStuff.ShaderLanguage.RGBA" => ValType.RGBA,
-        "DrawStuff.ShaderLanguage.VertexPos" => ValType.VertexPos,
-        "DrawStuff.ShaderLanguage.TextureHandle" => ValType.TextureHandle,
-        _ => null,
-    };
+    bool Fail<T>(out T result, string error, ISymbol sym) {
+        Error(error, sym);
+        return Fail(out result);
+    }
 
-    private bool ValidateType(ITypeSymbol sym, Location loc, out ValType r) {
-        if(ToShaderType(sym) is ValType t)
+    private bool ValidateType(ITypeSymbol sym, ISymbol loc, out ValueType r) {
+        if(Types.TryGet(sym) is ValueType t)
             return Success(out r, t);
         return Fail(out r, $"Type {sym.ToDisplayString()} is not supported in shaders", loc);
     }
 
-    private bool GetMethod(string name, out MethodInfo method) {
-        if (!(Members.TryGetValue(name, out var v) && v is IMethodSymbol m && m.IsStatic)) {
-            return Fail(out method, $"shader must have a static `{name}` method");
-        }
-        var syntax = m.DeclaringSyntaxReferences[0].GetSyntax() as MethodDeclarationSyntax;
-        var globals = new List<ArgumentInfo>();
+    private bool GetMethod(IMethodSymbol m, out MethodInfo method) {
         var inputs = new List<ArgumentInfo>();
-        var outputs = new List<ArgumentInfo>();
         foreach(var p in m.Parameters) {
-            switch(p.RefKind) {
-                case RefKind.In: {
-                    if (ValidateType(p.Type, p.Locations[0], out var r)) {
-                        inputs.Add(new(ArgKind.Input, p.Name, r, p.Locations[0]));
-                    }
-                    break;
-                }
-                case RefKind.Out: {
-                    if (ValidateType(p.Type, p.Locations[0], out var r)) {
-                        outputs.Add(new(ArgKind.Output, p.Name, r, p.Locations[0]));
-                    }
-                    break;
-                }
-                default:
-                    return Fail(out method, $"Unsupported parameter ref kind {p.RefKind}", p.Locations[0]);
+            if (ValidateType(p.Type, p, out var r)) {
+                inputs.Add(new(p.Name, r, SymbolLoc(p)));
+            }
+            if(p.RefKind is not (RefKind.None or RefKind.In)) {
+                Error($"Unsupported parameter ref kind {p.RefKind}", p);
             }
         }
-        if(!m.ReturnsVoid) {
-            return Fail(out method,
-                "Method must return void",
-                syntax?.ReturnType.GetLocation() ?? m.Locations[0]);
-        }
-        var info = new MethodInfo() { Sym = m, Inputs = inputs.ToArray(), Outputs = outputs.ToArray() };
+        ValidateType(m.ReturnType, m, out var returnType);
+        var info = new MethodInfo(m, inputs.ToArray(), returnType);
         return Success(out method, info);
     }
 
-    private bool GetVertexMethod() {
-        return GetMethod("Vertex", out Vertex);
-    }
-
-    private bool GetFragmentMethod() {
-        return GetMethod("Fragment", out Fragment);
-    }
-
-    private void Process() {
-        if (Sym.DeclaredAccessibility != Accessibility.Public || !Sym.IsStatic) {
-            Error("shader must be a public static class");
+    private void GetUniqueMethod(IMethodSymbol m, ref MethodInfo? vertex) {
+        if(vertex != null) {
+            Error($"Function '{m.Name}' can only be defined once, but more than one definition was found", m);
             return;
         }
+        GetMethod(m, out vertex);
+    }
+
+    private void GetHelperMethod(IMethodSymbol m, List<MethodInfo> helpers) {
+        if(GetMethod(m, out var info)) {
+            helpers.Add(info);
+        }
+    }
+
+    public bool Process(out ShaderInfo result) {
         if (!Syntax.Modifiers.Any(m => m.IsKind(SyntaxKind.PartialKeyword))) {
-            Error("shader class must be declared with the `partial` keyword");
-            return;
+            return Fail(out result, "shader class must be declared with the `partial` keyword");
+        }
+
+        // Check for invalid members and find struct definitions
+        foreach(var m in Members) {
+            if(m.IsStatic) {
+                Error("Shader members should not be static", m);
+            }
+            if(m is INamedTypeSymbol t) {
+                if(!t.IsValueType || !t.IsRecord) {
+                    Error("Custom shader types must be record structs");
+                }
+                List<(string, ValueType)> fields = new();
+                foreach(var structMember in t.GetMembers()) {
+                    if(structMember is IFieldSymbol f) {
+                        if(f.IsStatic) {
+                            Error("Shader struct may not contain static members", t);
+                        }
+                        if(ValidateType(f.Type, f, out var fieldType)) {
+                            var name = f.AssociatedSymbol == null ? f.Name : f.AssociatedSymbol.Name;
+                            fields.Add((name, fieldType));
+                        }
+                    }
+                }
+                var expectedFields = t.Constructors.Max(m => m.Parameters.Length);
+                if(fields.Count != expectedFields) {
+                    Error("Only simple record structs are permitted in shaders", t);
+                }
+                Types.CustomStructs.Add(t.ToDisplayString(), new(t.Name, fields.ToImmutableArray()));
+            }
         }
 
         // Find the globals
         var globals = new List<ArgumentInfo>();
-        foreach (var m in Members.Values) {
-            if (m.IsStatic && m is IFieldSymbol f) {
-                if (ValidateType(f.Type, f.Locations[0], out var r)) {
-                    globals.Add(new(ArgKind.Global, f.Name, r, f.Locations[0]));
+        foreach (var m in Members) {
+            if (m is IFieldSymbol f) {
+                if (ValidateType(f.Type, f, out var r)) {
+                    globals.Add(new(f.Name, r, SymbolLoc(f)));
                 }
             }
         }
-        Globals = globals.OrderBy(x => x.Loc.GetLineSpan().StartLinePosition).ToArray();
-        if (Errors.Any())
-            return;
+        var orderedGlobals = globals.OrderBy(x => x.Loc.GetLineSpan().StartLinePosition).ToArray();
 
-        if (!GetVertexMethod())
-            return;
-        if (!GetFragmentMethod())
-            return;
+        MethodInfo? vertex = null;
+        MethodInfo? fragment = null;
+        List<MethodInfo> helpers = new();
+
+        foreach (var sym in Members) {
+            if(sym is IMethodSymbol m) {
+                if (sym.Name is "Vertex") GetUniqueMethod(m, ref vertex);
+                else if (sym.Name is "Fragment") GetUniqueMethod(m, ref fragment);
+                else GetHelperMethod(m, helpers);
+            }
+        }
+
+        if (vertex is null) Error("Shader requires 'Vertex' method");
+        else {
+            bool containsPos =
+                vertex.Output is Vec4Type ||
+                (vertex.Output is CustomStruct cs
+                    && cs.Fields.Any(f => f.Item1 == "Pos" && f.Item2 is Vec4Type));
+            if(!containsPos) {
+                Error("Vertex method must either return Vec4, or a struct with 'Vec4 Pos' field", vertex.Sym);
+            }
+        }
+        if (fragment is null) Error("Shader requires 'Fragment' method");
+        else {
+            if(fragment.Output is not RGBAType) {
+                Error("Fragment method must return RGBA value", fragment.Sym);
+            }
+        }
+
+        if(Errors.Any())
+            return Fail(out result);
+
+        return Success(out result, new(Sym, Syntax, vertex!, fragment!, orderedGlobals, Types));
     }
 
-    public static bool Process(List<Diagnostic> errors, ClassInfo c, out ShaderAnalyze result) {
-        var info = new ShaderAnalyze(errors, c);
-        if (info.Errors.Count > 0) {
-            result = null;
-            return false;
-        }
-        else {
-            result = info;
-            return true;
-        }
+    public static bool Process(List<Diagnostic> errors, ClassInfo c, out ShaderInfo result) {
+        var analyze = new ShaderAnalyze(errors, c);
+        return analyze.Process(out result);
     }
 
 }

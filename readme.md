@@ -18,17 +18,16 @@ This is an example of some C# shader code:
 
 ```csharp
 [ShaderProgram]
-public static partial class BasicShader {
+partial class BasicShader {
 
-    static Mat4 transform;
+    Mat4 transform;
 
-    public static void Vertex(in Vec3 pos, out VertexPos vertPos) {
-        vertPos = transform * new Vec4(pos.x, pos.y, pos.z, 1f);
-    }
+    Vec4 Vertex(Vec3 pos) =>
+        transform * vec4(pos.x, pos.y, pos.z, 1f);
 
-    public static void Fragment(out RGBA colour) {
-        colour = new(1, 1, 1, 1);
-    }
+    RGBA Fragment() =>
+        rgba(1, 1, 1, 1);
+
 }
 ```
 

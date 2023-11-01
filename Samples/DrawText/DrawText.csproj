@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Runtime\DrawStuff.Runtime.csproj" />
+    <ProjectReference Include="..\..\Core\DrawStuff.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

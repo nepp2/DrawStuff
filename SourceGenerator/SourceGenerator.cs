@@ -34,7 +34,7 @@ public class ShaderGenerator : ISourceGenerator {
             }
         }
         catch (Exception ex) {
-            context.ReportDiagnostic(Diagnostic.Create(Diagnostics.InvalidShader, null, ex.Message));
+            context.ReportDiagnostic(Diagnostic.Create(ShaderDiagnostic.InvalidShader, null, ex.Message));
         }
         
     }
@@ -53,7 +53,7 @@ public class ShaderGenerator : ISourceGenerator {
             if (!s.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "DrawStuff.ShaderProgramAttribute"))
                 return;
             try {
-                var classInfo = new ClassInfo{ Type = s, Syntax = c };
+                var classInfo = new ClassInfo(s, c, context.SemanticModel);
                 if(ShaderAnalyze.Process(Errors, classInfo, out var shaderInfo)) {
                     var output = CodegenCSharp.GenerateClassExtension(Errors, shaderInfo, context.SemanticModel);
                     var filename = $"ShaderGen__{shaderInfo.Sym.Name}.g.cs";
@@ -62,7 +62,7 @@ public class ShaderGenerator : ISourceGenerator {
             }
             catch (ShaderGenException e) {
                 var msg = $"Internal ShaderGen exception: {e.Message}";
-                Errors.Add(Diagnostic.Create(Diagnostics.InvalidShader, null, msg));
+                Errors.Add(Diagnostic.Create(ShaderDiagnostic.InvalidShader, null, msg));
             }
         }
     }

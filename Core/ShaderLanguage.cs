@@ -9,13 +9,13 @@ public class ShaderLanguageException : Exception {
     public ShaderLanguageException() : base("This operation can only execute on the GPU") { }
 }
 
-public static class ShaderLanguage {
+public interface ShaderLanguage {
 
     public struct VertInput {
         public long index;
     }
 
-    public struct TextureHandle { }
+    public struct Texture { }
 
     [StructLayout(LayoutKind.Sequential)]
     public struct Mat4 {
@@ -56,6 +56,8 @@ public static class ShaderLanguage {
         public static Vec3 operator +(Vec3 a, Vec3 b) => throw new ShaderLanguageException();
         public static Vec3 operator -(Vec3 a, Vec3 b) => throw new ShaderLanguageException();
         public static Vec3 operator *(Vec3 a, Vec3 b) => throw new ShaderLanguageException();
+        public static Vec3 operator *(Vec3 a, float b) => throw new ShaderLanguageException();
+        public static Vec3 operator /(Vec3 a, float b) => throw new ShaderLanguageException();
 
         public static implicit operator Vec3(Vector3D<float> v) => new(v);
     }
@@ -67,6 +69,8 @@ public static class ShaderLanguage {
         public static Vec2 operator +(Vec2 a, Vec2 b) => throw new ShaderLanguageException();
         public static Vec2 operator -(Vec2 a, Vec2 b) => throw new ShaderLanguageException();
         public static Vec2 operator *(Vec2 a, Vec2 b) => throw new ShaderLanguageException();
+        public static Vec2 operator *(Vec2 a, float b) => throw new ShaderLanguageException();
+        public static Vec2 operator /(Vec2 a, float b) => throw new ShaderLanguageException();
 
         public static implicit operator Vec2(Vector2D<float> v) => new(v);
     }
@@ -78,27 +82,21 @@ public static class ShaderLanguage {
         public static RGBA operator +(RGBA a, RGBA b) => throw new ShaderLanguageException();
         public static RGBA operator -(RGBA a, RGBA b) => throw new ShaderLanguageException();
         public static RGBA operator *(RGBA a, RGBA b) => throw new ShaderLanguageException();
+        public static RGBA operator *(RGBA a, float b) => throw new ShaderLanguageException();
+        public static RGBA operator /(RGBA a, float b) => throw new ShaderLanguageException();
 
         public static implicit operator RGBA(Vector4D<float> v) => new(v);
         public static implicit operator RGBA(Vec4 v) => new(v.x, v.y, v.z, v.w);
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    public record struct VertexPos(float x, float y, float z, float w) {
-        public VertexPos(Vector4D<float> v) : this(v.X, v.Y, v.Z, v.W) { }
-
-        public static VertexPos operator +(VertexPos a, VertexPos b) => throw new ShaderLanguageException();
-        public static VertexPos operator -(VertexPos a, VertexPos b) => throw new ShaderLanguageException();
-        public static VertexPos operator *(VertexPos a, VertexPos b) => throw new ShaderLanguageException();
-
-        public static implicit operator VertexPos(Vector4D<float> v) => new(v);
-        public static implicit operator VertexPos(Vec4 v) => new(v.x, v.y, v.z, v.w);
-        public static implicit operator Vec4(VertexPos v) => new(v.x, v.y, v.z, v.w);
-    }
+    public static Vec2 vec2(float x, float y) => throw new NotImplementedException();
+    public static Vec3 vec3(float x, float y, float z) => throw new NotImplementedException();
+    public static Vec4 vec4(float x, float y, float z, float w) => throw new NotImplementedException();
+    public static RGBA rgba(float r, float g, float b, float a) => throw new NotImplementedException();
 
     public static float sqrt(float v) => throw new NotImplementedException();
 
-    public static Vec4 sample(TextureHandle t, Vec2 tc) => throw new NotImplementedException();
+    public static RGBA sample(Texture t, Vec2 tc) => throw new NotImplementedException();
 
     public static Vec4 discard() => throw new NotImplementedException();
 
