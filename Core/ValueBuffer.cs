@@ -2,13 +2,14 @@
 using Silk.NET.Maths;
 using Silk.NET.SDL;
 using System;
+using System.Collections;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using static DrawStuff.ShaderLanguage;
 
 namespace DrawStuff;
 
-public class ValueBuffer<T> where T : unmanaged {
+public class ValueBuffer<T> : IEnumerable<T> where T : unmanaged {
     public T[] Buffer = new T[1024];
     public int Count = 0;
 
@@ -51,4 +52,12 @@ public class ValueBuffer<T> where T : unmanaged {
 
     public ReadOnlySpan<U> CastElements<U>() where U : unmanaged
         => MemoryMarshal.Cast<T, U>(AsSpan());
+
+    public IEnumerator<T> GetEnumerator() {
+        return Buffer.AsEnumerable().GetEnumerator();
+    }
+
+    IEnumerator IEnumerable.GetEnumerator() {
+        return GetEnumerator();
+    }
 }

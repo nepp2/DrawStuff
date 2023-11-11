@@ -1,4 +1,5 @@
 ﻿
+using Silk.NET.OpenGL;
 using System.Runtime.InteropServices;
 
 namespace DrawStuff;
@@ -19,36 +20,28 @@ public class Shader<Vertex, Vars>
         uniformLocations = config.Vars.Select(shader.GetUniformLocation).ToArray();
     }
 
-    public ShapeArray<Vertex, ShapeType> CreateShapeArray<ShapeType>()
-        where ShapeType : unmanaged
-            => draw.CreateShapeArray<Vertex, ShapeType>(config);
+    public GPUGeometry<Vertex, Triangle> CreateGPUGeometry()
+            => new GPUGeometryGL<Vertex, Triangle>(draw, config.VertexAttribs);
 
-    public ShapeArray<Vertex, Triangle> CreateTriangleArray()
-        => CreateShapeArray<Triangle>();
-
-    public ShapeBuilder<Vertex, ShapeType> CreateShapeBuilder<ShapeType>()
-        where ShapeType : unmanaged
+    public Geometry<Vertex> CreateGeometry()
             => new();
 
-    public ShapeBuilder<Vertex, Triangle> CreateTriangleBuilder()
-        => new ();
-
-    public ShapeArray<Vertex, ShapeType> LoadShapeArray<ShapeType>(ShapeBuilder<Vertex, ShapeType> builder)
-    where ShapeType : unmanaged {
-        var shapes = CreateShapeArray<ShapeType>();
+    public GPUGeometry<Vertex, Triangle> LoadGeometry(Geometry<Vertex> builder) {
+        var shapes = CreateGPUGeometry();
         shapes.OverwriteAll(builder);
         return shapes;
     }
 
-    public ShapeArray<Vertex, Triangle> CreateTriangleArray(ShapeBuilder<Vertex, Triangle> builder)
-        => LoadShapeArray(builder);
-
-    public void Draw<ShapeType>(in ShapeArray<Vertex, ShapeType> shapes, in Vars vars)
+    public void Draw<ShapeType>(in GPUGeometry<Vertex, ShapeType> shapes, in Vars vars)
         where ShapeType : unmanaged 
     {
+        var gl = draw.GetGL();
+        gl.Enable(EnableCap.CullFace);
+        gl.Enable(EnableCap.DepthTest);
+        gl.DepthRange(-100000, 100000);
         shader.Bind();
         config.SetVars(shader, uniformLocations, vars);
-        var glShapes = (ShapeArrayGL<Vertex, ShapeType>)shapes;
+        var glShapes = (GPUGeometryGL<Vertex, ShapeType>)shapes;
         var vertexArray = glShapes.VertexArray;
         int indicesPerShape = Marshal.SizeOf<ShapeType>() / sizeof(uint);
         vertexArray.Draw(vertexArray.Ebo.Count * indicesPerShape);

@@ -15,9 +15,9 @@ void OnWindowLoad() {
     var font = ds.LoadDefaultFont();
 
     // Add some geometry for the characters
-    var builder = shader.CreateTriangleBuilder();
+    var builder = shader.CreateGeometry();
     Font.DrawText(builder, new(100, 100), font, "Hello world");
-    var textGeometry = shader.CreateTriangleArray(builder);
+    var textGeometry = shader.LoadGeometry(builder);
 
     void OnRender(double seconds) {
         ds.ClearWindow();

@@ -1,6 +1,7 @@
 ﻿
 using Silk.NET.Maths;
 using Silk.NET.OpenGL;
+using System.Numerics;
 using System.Text.RegularExpressions;
 
 namespace DrawStuff;
@@ -123,6 +124,11 @@ public class GLShader : IDisposable {
 
     public unsafe void SetUniform(int location, ShaderLanguage.Mat4 value) =>
         SetUniformMatrix(location, (float*)&value);
+
+    public unsafe void SetUniform(int location, ShaderLanguage.Vec3 v) {
+        var vec = new Vector3(v.x, v.y, v.z);
+        gl.Uniform3(location, vec);
+    }
 
     public unsafe void SetUniform(string name, Matrix4X4<float> value) =>
         SetUniformMatrix(GetUniformLocation(name), (float*)&value);

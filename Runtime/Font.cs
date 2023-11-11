@@ -28,7 +28,7 @@ public class Font {
     private const int FontBitmapWidth = 1024;
     private const int FontBitmapHeight = 1024;
 
-    public static void DrawText(ShapeBuilder<SpriteVert, Triangle> b, Vector2D<float> pos, BakedFont font, string text) {
+    public static void DrawText(Geometry<SpriteVert> b, Vector2D<float> pos, BakedFont font, string text) {
         var (tw, th) = ((float)font.Texture.Width, (float)font.Texture.Height);
         foreach (char c in text) {
             if (font.charMap.TryGetValue(c, out int i)) {
@@ -48,16 +48,16 @@ public class Font {
         }
     }
 
-    public static BakedFont Load(GL gl, string fontPath) {
+    public static BakedFont Load(GL gl, string fontPath, int pixelHeight) {
         var bytes = File.ReadAllBytes(fontPath);
-        return Load(gl, bytes);
+        return Load(gl, pixelHeight, bytes);
     }
 
-    public static BakedFont Load(GL gl, byte[] fontBytes) {
+    public static BakedFont Load(GL gl, int pixelHeight, byte[] fontBytes) {
         var fontBaker = new FontBaker();
 
         fontBaker.Begin(FontBitmapWidth, FontBitmapHeight);
-        fontBaker.Add(fontBytes, 32, new[]
+        fontBaker.Add(fontBytes, pixelHeight, new[]
         {
             CharacterRange.BasicLatin,
             CharacterRange.Latin1Supplement,
@@ -116,8 +116,8 @@ public class Font {
     }
 
     public static class Builtins {
-        public static BakedFont LoadRoboto(GL gl) {
-            return Load(gl, BundledData.GetFile("Fonts/Roboto-Black.ttf"));
+        public static BakedFont LoadRoboto(GL gl, int pixelHeight) {
+            return Load(gl, pixelHeight, BundledData.GetFile("Fonts/Roboto-Black.ttf"));
         }
     }
 }

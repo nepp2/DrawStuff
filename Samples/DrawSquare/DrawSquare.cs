@@ -1,12 +1,10 @@
 ﻿using Silk.NET.Windowing;
-using Silk.NET.Maths;
 using DrawStuff;
 using static DrawStuff.ShaderLanguage;
+using System.Numerics;
 
 // the size of the square
 const float size = 200;
-
-Vector2D<float> vec2(float x, float y) => new(x, y);
 
 // Create a window
 var window = Window.Create(WindowOptions.Default with {
@@ -21,15 +19,15 @@ void OnWindowLoad() {
     var shader = ds.LoadShader(BasicShader.Config);
 
     // Create a triangle array with a single square
-    var builder = shader.CreateTriangleBuilder();
+    var builder = shader.CreateGeometry();
     builder.PushQuad(new(0, 0), new(0, size), new(size, size), new(size, 0));
-    var triangles = shader.CreateTriangleArray(builder);
+    var triangles = shader.LoadGeometry(builder);
 
     // Create a camera that uses pixel coordinates with the origin in the top left
-    var screenSize = vec2(window.Size.X, window.Size.Y);
+    var screenSize = new Vector2(window.Size.X, window.Size.Y);
     var camera =
-        Matrix4X4.CreateScale(2f / screenSize.X, -2f / screenSize.Y, 1f)
-        * Matrix4X4.CreateTranslation(-1f, 1f, 0f);
+        Matrix4x4.CreateScale(2f / screenSize.X, -2f / screenSize.Y, 1f)
+        * Matrix4x4.CreateTranslation(-1f, 1f, 0f);
 
     float time = 0;
     void OnRender(double seconds) {
@@ -38,9 +36,9 @@ void OnWindowLoad() {
 
         // Make the square move in a circle as time passes
         time += (float)seconds;
-        var pos = vec2(MathF.Cos(time * 2), MathF.Sin(time * 2)) * 300f;
-        pos += (screenSize - vec2(size, size)) / 2f;
-        var transform = Matrix4X4.CreateTranslation(pos.X, pos.Y, 0);
+        var pos = new Vector2(MathF.Cos(time * 2), MathF.Sin(time * 2)) * 300f;
+        pos += (screenSize - new Vector2(size, size)) / 2f;
+        var transform = Matrix4x4.CreateTranslation(pos.X, pos.Y, 0);
 
         // Draw the square
         shader.Draw(triangles, transform * camera);
