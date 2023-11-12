@@ -4,7 +4,7 @@ using static DrawStuff.ShaderLanguage;
 partial class SpriteShader {
 
     Mat4 transform;
-    Texture texture;
+    Texture2D texture;
 
     public record struct ShadeInput(Vec4 Pos, Vec2 TexCoord, RGBA Tint);
 

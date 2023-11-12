@@ -30,7 +30,7 @@ public static class BuiltinTypes {
     public static UInt32Type UInt32 = new UInt32Type();
     public static Mat4Type Mat4 = new Mat4Type();
     public static RGBAType RGBA = new RGBAType();
-    public static TextureType Texture = new TextureType();
+    public static TextureType Texture2D = new TextureType();
 }
 
 public record CustomStruct(string Name, ImmutableArray<(string, ValueType)> Fields) : ValueType;
@@ -80,7 +80,7 @@ public class ShaderTypes {
         "DrawStuff.ShaderLanguage.Vec4" => BuiltinTypes.Vec4,
         "DrawStuff.ShaderLanguage.Mat4" => BuiltinTypes.Mat4,
         "DrawStuff.ShaderLanguage.RGBA" => BuiltinTypes.RGBA,
-        "DrawStuff.ShaderLanguage.Texture" => BuiltinTypes.Texture,
+        "DrawStuff.ShaderLanguage.Texture2D" => BuiltinTypes.Texture2D,
         _ => null,
     };
 

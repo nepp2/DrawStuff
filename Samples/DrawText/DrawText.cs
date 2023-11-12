@@ -15,13 +15,13 @@ void OnWindowLoad() {
     var font = ds.LoadDefaultFont();
 
     // Add some geometry for the characters
-    var builder = shader.CreateGeometry();
-    Font.DrawText(builder, new(100, 100), font, "Hello world");
-    var textGeometry = shader.LoadGeometry(builder);
+    var spriteCanvas = shader.CreateGeometry();
+    spriteCanvas.AddText(new(100, 100), font, "Hello world");
+    var gpuGeometry = shader.LoadGeometry(spriteCanvas);
 
     void OnRender(double seconds) {
         ds.ClearWindow();
-        shader.Draw(textGeometry, new(ds.GetPixelCamera(), font.Texture));
+        shader.Draw(gpuGeometry, new(ds.GetPixelCamera(), font.Texture));
     }
 
     window.Render += OnRender;

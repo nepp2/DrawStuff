@@ -1,7 +1,5 @@
-﻿
-
-using Silk.NET.OpenGL;
-namespace DrawStuff;
+﻿using Silk.NET.OpenGL;
+namespace DrawStuff.OpenGL;
 
 public class GLBufferObject<T> : IDisposable where T : unmanaged {
     private GL gl;

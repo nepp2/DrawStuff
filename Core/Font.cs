@@ -1,23 +1,24 @@
-﻿
-using Silk.NET.OpenGL;
+﻿// This font rendering implementation was adapted from StbTrueTypeSharp, which it also depends on.
+// SbtTrueTypeSharp is licensed as public domain, and can be found here (as of 2023):
+// https://github.com/StbSharp/StbTrueTypeSharp
+
 using StbTrueTypeSharp;
 using System.Runtime.InteropServices;
-using Silk.NET.Maths;
+using System.Numerics;
+using System.Drawing;
 
 namespace DrawStuff;
-
-using SpriteVert = SpriteShader.VertexData;
 
 public record struct TextRaster(byte[] Data, int Width, int Height);
 
 public record BakedFont(
-    GLTexture Texture,
-    List<Rectangle<int>> GlyphBounds,
-    List<Rectangle<int>> Cropping,
+    GPUTexture Texture,
+    List<Rectangle> GlyphBounds,
+    List<Rectangle> Cropping,
     List<char> Chars,
     int LineSpacing,
     int Spacing,
-    List<Vector3D<float>> Kerning,
+    List<Vector3> Kerning,
     char DefaultChar)
 {
     public Dictionary<char, int> charMap =
@@ -28,32 +29,12 @@ public class Font {
     private const int FontBitmapWidth = 1024;
     private const int FontBitmapHeight = 1024;
 
-    public static void DrawText(Geometry<SpriteVert> b, Vector2D<float> pos, BakedFont font, string text) {
-        var (tw, th) = ((float)font.Texture.Width, (float)font.Texture.Height);
-        foreach (char c in text) {
-            if (font.charMap.TryGetValue(c, out int i)) {
-                var bounds = font.GlyphBounds[i].As<float>();
-                var offset = pos + font.Cropping[i].Origin.As<float>();
-                b.PushQuad(
-                    offset.X,
-                    offset.Y,
-                    bounds.Size.X,
-                    bounds.Size.Y,
-                    bounds.Origin.X / tw, bounds.Origin.Y / th, bounds.Size.X / tw, bounds.Size.Y / th,
-                    (xPos, yPos, xTex, yTex) =>
-                        new SpriteVert(new(xPos, yPos), new(xTex, yTex), Colour.White.RGBA));
-                var kerning = font.Kerning[i].Z;
-                pos += new Vector2D<float>(bounds.Size.X + kerning, 0);
-            }
-        }
-    }
-
-    public static BakedFont Load(GL gl, string fontPath, int pixelHeight) {
+    public static BakedFont Load(IDrawStuff ds, string fontPath, int pixelHeight) {
         var bytes = File.ReadAllBytes(fontPath);
-        return Load(gl, pixelHeight, bytes);
+        return Load(ds, pixelHeight, bytes);
     }
 
-    public static BakedFont Load(GL gl, int pixelHeight, byte[] fontBytes) {
+    public static BakedFont Load(IDrawStuff ds, int pixelHeight, byte[] fontBytes) {
         var fontBaker = new FontBaker();
 
         fontBaker.Begin(FontBitmapWidth, FontBitmapHeight);
@@ -87,38 +68,32 @@ public class Font {
             rgb[i] = new(b, b, b, b);
         }
 
-        var fontTexture = GLTexture.Create(gl, MemoryMarshal.Cast<Colour, byte>(rgb), FontBitmapWidth, FontBitmapHeight);
+        var fontTexture = ds.LoadGPUTexture(MemoryMarshal.Cast<Colour, byte>(rgb), FontBitmapWidth, FontBitmapHeight);
 
-        var glyphBounds = new List<Rectangle<int>>();
-        var cropping = new List<Rectangle<int>>();
+        var glyphBounds = new List<Rectangle>();
+        var cropping = new List<Rectangle>();
         var chars = new List<char>();
-        var kerning = new List<Vector3D<float>>();
+        var kerning = new List<Vector3>();
 
         var orderedKeys = charData.Glyphs.Keys.OrderBy(a => a);
         foreach (var key in orderedKeys) {
             var character = charData.Glyphs[key];
 
-            var bounds = new Rectangle<int>(character.X, character.Y,
+            var bounds = new Rectangle(character.X, character.Y,
                 character.Width,
                 character.Height);
 
             glyphBounds.Add(bounds);
-            cropping.Add(new (character.XOffset, character.YOffset, bounds.Size.X, bounds.Size.Y));
+            cropping.Add(new (character.XOffset, character.YOffset, bounds.Width, bounds.Height));
 
             chars.Add((char)key);
 
-            kerning.Add(new (0, bounds.Size.X, character.XAdvance - bounds.Size.X));
+            kerning.Add(new (0, bounds.Width, character.XAdvance - bounds.Width));
         }
 
         return new (
             fontTexture, glyphBounds, cropping,
             chars, 20, 0, kerning, ' ');
-    }
-
-    public static class Builtins {
-        public static BakedFont LoadRoboto(GL gl, int pixelHeight) {
-            return Load(gl, pixelHeight, BundledData.GetFile("Fonts/Roboto-Black.ttf"));
-        }
     }
 }
 

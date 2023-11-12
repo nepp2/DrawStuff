@@ -1,12 +1,7 @@
 ﻿
 using Silk.NET.OpenGL;
-using System.Reflection;
-using System.Runtime.InteropServices;
 
-namespace DrawStuff;
-
-[StructLayout(LayoutKind.Sequential)]
-public record struct Triangle(uint A, uint B, uint C);
+namespace DrawStuff.OpenGL;
 
 public record struct GLAttribPtrType(VertexAttribPointerType Type, int ByteSize) {
     public static GLAttribPtrType Float32 => new(VertexAttribPointerType.Float, 4);
@@ -23,58 +18,7 @@ public record struct GLAttribPtrType(VertexAttribPointerType Type, int ByteSize)
     }
 }
 
-public record struct GLAttribute(string Name, int NumVals, GLAttribPtrType ValInfo) {
-
-    public static GLAttribPtrType InferAttribPtrType(Type t) {
-        Validation.Assert(t.IsValueType, "Can only pass value types as shader attributes");
-        if (t.IsPrimitive) {
-            if (t == typeof(float))
-                return GLAttribPtrType.Float32;
-            else if (t == typeof(uint))
-                return GLAttribPtrType.Uint32;
-            else if(t == typeof(int))
-                return GLAttribPtrType.Int32;
-            else if (t == typeof(byte))
-                return GLAttribPtrType.Uint8;
-        }
-        foreach (var f in t.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public))
-            return InferAttribPtrType(f.FieldType);
-        throw new ValidationException($"Unsupported type {t}");
-    }
-
-    public static GLAttribute Of(string name, Type t) {
-        var attribType = InferAttribPtrType(t);
-        return new(name, Marshal.SizeOf(t) / attribType.ByteSize, attribType);
-    }
-
-    public static GLAttribute Of<T>(string name) where T : unmanaged {
-        return Of(name , typeof(T));
-    }
-
-    private static int FieldOffset(FieldInfo f) {
-        var offset = (int)Marshal.OffsetOf(f.DeclaringType!, f.Name);
-        return offset;
-    }
-
-    public static GLAttribute[] InferAttribArray(Type t) {
-        Validation.Assert(t.IsValueType, "Can only pass value types as shader attributes");
-        return t.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-            .OrderBy(FieldOffset)
-            .Select(f => Of(f.Name, f.FieldType))
-            .ToArray();
-    }
-
-    public static GLAttribute[] InferAttribArray<T>() where T : unmanaged {
-        return InferAttribArray(typeof(T));
-    }
-}
-
-public static class GLVertexArray {
-    public static GLVertexArray<VBO, EBO> Create<VBO, EBO>(
-        GL gl, GLBufferObject<VBO> vbo, GLBufferObject<EBO> ebo)
-        where VBO : unmanaged where EBO : unmanaged
-            => new(gl, vbo, ebo);
-}
+public record struct GLAttribute(string Name, int NumVals, GLAttribPtrType ValInfo);
 
 public class GLVertexArray<VBO, EBO> : IDisposable where VBO : unmanaged where EBO : unmanaged {
 
@@ -85,7 +29,7 @@ public class GLVertexArray<VBO, EBO> : IDisposable where VBO : unmanaged where E
 
     private GLAttribute[] Attribs;
 
-    public GLVertexArray(GL gl, GLBufferObject<VBO> vbo, GLBufferObject<EBO> ebo, GLAttribute[]? attribs = null) {
+    public GLVertexArray(GL gl, GLBufferObject<VBO> vbo, GLBufferObject<EBO> ebo, GLAttribute[] attribs) {
         this.gl = gl;
         Handle = gl.GenVertexArray();
         Vbo = vbo;
@@ -98,7 +42,7 @@ public class GLVertexArray<VBO, EBO> : IDisposable where VBO : unmanaged where E
         Vbo.Bind();
         Ebo.Bind();
 
-        Attribs = attribs != null ? attribs : GLAttribute.InferAttribArray<VBO>();
+        Attribs = attribs;
         SetAttributeLayout(gl, Attribs);
         gl.EnableVertexAttribArray(0);
     }
@@ -134,7 +78,5 @@ public class GLVertexArray<VBO, EBO> : IDisposable where VBO : unmanaged where E
 
     public void Dispose() {
         gl.DeleteVertexArray(Handle);
-        Vbo.Dispose();
-        Ebo.Dispose();
     }
 }

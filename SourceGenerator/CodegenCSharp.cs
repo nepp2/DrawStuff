@@ -110,7 +110,7 @@ public class CodegenCSharp {
         UInt32Type => "uint",
         Mat4Type => "Mat4",
         RGBAType => "RGBA",
-        TextureType => "GLTexture",
+        TextureType => "GPUTexture",
         CustomStruct cs => cs.Name,
         _ => throw new ShaderGenException("Unknown value type"),
     };
@@ -202,7 +202,7 @@ public class CodegenCSharp {
             var g = globals[0];
             var varType = ToCSharpType(g.Type);
             var code = Src.Lines(
-                $"public static void SetShaderVars(GLShader shader, int[] varLocations, in {varType} v) {{",
+                $"public static void SetShaderVars(GLShaderHandle shader, int[] varLocations, in {varType} v) {{",
                 Src.Indent(GenerateSetVarStatement(0, ref nextTextureSlot, g.Type, "v")),
                 @"}",
                 @""
@@ -219,7 +219,7 @@ public class CodegenCSharp {
                 ),
                 @"}",
                 @"",
-                @"public static void SetShaderVars(GLShader shader, int[] varLocations, in Vars v) {",
+                @"public static void SetShaderVars(GLShaderHandle shader, int[] varLocations, in Vars v) {",
                 Src.Indent(globals.Select((g, i) => GenerateSetVarStatement(i, ref nextTextureSlot, g.Type, $"v.{g.Name}"))),
                 @"}",
                 @""
@@ -271,6 +271,7 @@ public class CodegenCSharp {
             "using System.Runtime.InteropServices;",
             "using Silk.NET.OpenGL;",
             "using DrawStuff;",
+            "using DrawStuff.OpenGL;",
             "using static DrawStuff.ShaderLanguage;",
             "",
             classDef

@@ -1,7 +1,9 @@
 ﻿
+using DrawStuff.OpenGL;
+
 namespace DrawStuff;
 
-public delegate void SetShaderVarsFunc<Vars>(GLShader shader, int[] varLocations, in Vars v);
+public delegate void SetShaderVarsFunc<Vars>(GLShaderHandle shader, int[] varLocations, in Vars v);
 
 public record ShaderConfig(
     string VertexSrc,

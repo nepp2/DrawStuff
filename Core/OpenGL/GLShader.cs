@@ -2,65 +2,57 @@
 using Silk.NET.Maths;
 using Silk.NET.OpenGL;
 using System.Numerics;
-using System.Text.RegularExpressions;
+using System.Runtime.InteropServices;
 
-namespace DrawStuff;
+namespace DrawStuff.OpenGL;
 
-public enum UniformType {
-    Float,
-    UInt32,
-    Vec2,
-    Vec3,
-    Vec4,
-    Matrix4x4
-}
+public class GLShader<Vertex, Vars> : Shader<Vertex, Vars>
+    where Vertex : unmanaged {
+    private GLDrawStuff draw;
+    private GLShaderHandle handle;
+    private ShaderConfig<Vertex, Vars> config;
+    private int[] uniformLocations;
 
-public record struct GLUniform(UniformType Type, string Name);
+    public GLShader(GLDrawStuff draw, ShaderConfig<Vertex, Vars> config) {
+        this.draw = draw;
+        this.config = config;
+        handle = GLShaderHandle.Compile(draw.GetGL(), config.VertexSrc, config.FragmentSrc);
+        uniformLocations = config.Vars.Select(handle.GetUniformLocation).ToArray();
+    }
 
-public record ShaderInputs(GLAttribute[] Attributes);
+    public GPUGeometry<Vertex, Triangle> CreateGPUGeometry()
+        => new GLGeometry<Vertex, Triangle>(draw, config.VertexAttribs);
 
-public class ShaderInfo {
+    public void Draw<ShapeType>(in GPUGeometry<Vertex, ShapeType> shapes, in Vars vars)
+        where ShapeType : unmanaged {
+        var gl = draw.GetGL();
+        gl.Enable(EnableCap.CullFace);
+        gl.Enable(EnableCap.DepthTest);
+        gl.DepthRange(-100000, 100000);
+        handle.Bind();
+        config.SetVars(handle, uniformLocations, vars);
+        var glShapes = (GLGeometry<Vertex, ShapeType>)shapes;
+        var vertexArray = glShapes.VertexArray;
+        int indicesPerShape = Marshal.SizeOf<ShapeType>() / sizeof(uint);
+        vertexArray.Draw(vertexArray.Ebo.Count * indicesPerShape);
+    }
 
-    record struct AttribDecl(string Type, string Name, int Location);
-
-    static Regex attributeRegex = new(
-        @"layout\s*\(\s*location\s*=\s*(?<location>\d+)\s*\)\s*in\s*(?<type>\w+)\s*(?<name>\w+)\s*;",
-        RegexOptions.Compiled);
-
-    public static ShaderInputs Infer(string vertShaderSrc, string fragShaderSrc) {
-        var attributes = attributeRegex.Matches(vertShaderSrc)
-            .Select(m => new AttribDecl(
-                m.Groups["type"].Value, m.Groups["name"].Value, int.Parse(m.Groups["location"].Value)))
-            .OrderBy(d => d.Location)
-            .Select(d => d.Type switch {
-                "float" => new GLAttribute(d.Name, 1, GLAttribPtrType.Float32),
-                "uint" => new GLAttribute(d.Name, 1, GLAttribPtrType.Uint32),
-                "vec2" => new GLAttribute(d.Name, 2, GLAttribPtrType.Float32),
-                "vec3" => new GLAttribute(d.Name, 3, GLAttribPtrType.Float32),
-                "vec4" => new GLAttribute(d.Name, 4, GLAttribPtrType.Float32),
-                _ => throw new NotSupportedException($"Unknown shader attribute type {d.Type}"),
-            }).ToArray();
-        return new(attributes);
+    public void Dispose() {
+        handle.Dispose();
     }
 }
 
-public class UniformNotFoundException : Exception {
-    public UniformNotFoundException(string name) : base($"Uniform '{name}' was not found") { }
-}
-
-public class GLShader : IDisposable {
+public struct GLShaderHandle : IDisposable {
 
     private GL gl;
     public uint Handle { get; }
-    public ShaderInputs Inputs { get; }
 
-    private GLShader(GL gl, uint handle, ShaderInputs inputs) {
+    private GLShaderHandle(GL gl, uint handle) {
         this.gl = gl;
         Handle = handle;
-        Inputs = inputs;
     }
 
-    public static GLShader Compile(GL gl, string vertexSrc, string fragmentSrc) {
+    public static GLShaderHandle Compile(GL gl, string vertexSrc, string fragmentSrc) {
 
         //Creating a vertex shader.
         uint vertexShader = gl.CreateShader(ShaderType.VertexShader);
@@ -102,7 +94,7 @@ public class GLShader : IDisposable {
         gl.DeleteShader(vertexShader);
         gl.DeleteShader(fragmentShader);
 
-        return new(gl, shader, ShaderInfo.Infer(vertexSrc, fragmentSrc));
+        return new(gl, shader);
     }
 
     public void Bind() {
@@ -116,6 +108,9 @@ public class GLShader : IDisposable {
         }
         return location;
     }
+
+    public void SetUniform(int location, TextureUnit slot, GPUTexture texture) =>
+        SetUniform(location, slot, (GLTexture)texture);
 
     public void SetUniform(int location, TextureUnit slot, GLTexture texture) {
         texture.Bind(slot);
@@ -149,4 +144,8 @@ public class GLShader : IDisposable {
     public void Dispose() {
         gl.DeleteProgram(Handle);
     }
+}
+
+public class UniformNotFoundException : Exception {
+    public UniformNotFoundException(string name) : base($"Uniform '{name}' was not found") { }
 }

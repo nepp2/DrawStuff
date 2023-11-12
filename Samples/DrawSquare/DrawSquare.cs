@@ -20,7 +20,7 @@ void OnWindowLoad() {
 
     // Create a triangle array with a single square
     var builder = shader.CreateGeometry();
-    builder.PushQuad(new(0, 0), new(0, size), new(size, size), new(size, 0));
+    builder.AddQuad(new(0, 0), new(0, size), new(size, size), new(size, 0));
     var triangles = shader.LoadGeometry(builder);
 
     // Create a camera that uses pixel coordinates with the origin in the top left
