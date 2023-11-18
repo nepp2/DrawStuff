@@ -1,11 +1,7 @@
 ﻿
-using Silk.NET.Maths;
-using Silk.NET.SDL;
-using System;
 using System.Collections;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using static DrawStuff.ShaderLanguage;
 
 namespace DrawStuff;
 

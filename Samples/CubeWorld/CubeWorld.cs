@@ -5,6 +5,7 @@ using System.Numerics;
 
 using CubeVert = CubeShader.VertexData;
 using DotnetNoise;
+using Silk.NET.Input;
 
 // Create a window
 var window = Window.Create(WindowOptions.Default with {
@@ -48,19 +49,27 @@ void OnWindowLoad() {
         textQuads.Verts.Select(v => v.pos.x).Max(),
         textQuads.Verts.Select(v => v.pos.y).Max());
 
+    var keyboard = window.CreateInput().Keyboards[0];
+
     float time = 0;
+    float zoom = 0;
+    float zoomSpeed = 2;
+    float speed = 30;
+    float angle = 5 * (MathF.PI / 4f);
+    Vector3 camPos = Vector3.One * -(chunkSize / 2f + 0.5f);
+
     void OnRender(double seconds) {
         // Clear the screen
         ds.ClearWindow();
 
-        time += (float)seconds * 0.2f;
         var transform =
-            Matrix4x4.CreateTranslation(Vector3.One * -(chunkSize / 2f + 0.5f))
+            Matrix4x4.CreateScale(1)
+            * Matrix4x4.CreateTranslation(camPos)
             * Matrix4x4.CreateFromQuaternion(
-                Quaternion.CreateFromYawPitchRoll(time, 0, 0))
+                Quaternion.CreateFromYawPitchRoll(angle, 0, 0))
             * Matrix4x4.CreateFromQuaternion(
                 Quaternion.CreateFromYawPitchRoll(0, -0.5f, 0))
-            * Matrix4x4.CreateScale(0.1f);
+            * Matrix4x4.CreateScale(0.1f * MathF.Pow(2, zoom));
 
         // Draw the cubes
         shader.Draw(gpuWorld, new(transform, new(-1, -1, -1), atlas.Tex));
@@ -75,6 +84,28 @@ void OnWindowLoad() {
         fontShader.Draw(textGeometry, new(textTransform, font.Texture));
     }
 
+    void OnUpdate(double seconds) {
+        time += (float)seconds * 0.2f;
+        var zoomedSpeed = speed / MathF.Pow(2, zoom);
+        if (keyboard.IsKeyPressed(Key.Left))
+            angle += (float)seconds;
+        if (keyboard.IsKeyPressed(Key.Right))
+            angle -= (float)seconds;
+        if (keyboard.IsKeyPressed(Key.Up))
+            camPos -= new Vector3(MathF.Sin(-angle), 0, MathF.Cos(-angle)) * (float)seconds * zoomedSpeed;
+        if (keyboard.IsKeyPressed(Key.Down))
+            camPos += new Vector3(MathF.Sin(-angle), 0, MathF.Cos(-angle)) * (float)seconds * zoomedSpeed;
+        if (keyboard.IsKeyPressed(Key.W))
+            zoom += zoomSpeed * (float)seconds;
+        if (keyboard.IsKeyPressed(Key.S))
+            zoom -= zoomSpeed * (float)seconds;
+        if (keyboard.IsKeyPressed(Key.A))
+            camPos += new Vector3(MathF.Cos(angle), 0, MathF.Sin(angle)) * (float)seconds * zoomedSpeed;
+        if (keyboard.IsKeyPressed(Key.D))
+            camPos -= new Vector3(MathF.Cos(angle), 0, MathF.Sin(angle)) * (float)seconds * zoomedSpeed;
+    }
+
+    window.Update += OnUpdate;
     window.Render += OnRender;
 }
 
@@ -126,7 +157,6 @@ public record CubeModels(Geometry<CubeVert> Grass, Geometry<CubeVert> Dirt) {
 }
 
 public static class GeometryExtensions {
-
 
     static void AddCubeFace(
         this Geometry<CubeVert> g,
