@@ -7,8 +7,10 @@ using SpriteVert = SpriteShader.VertexData;
 
 public static class FontExt {
 
-    public static Geometry<SpriteVert> AddText(this Geometry<SpriteVert> b, Vector2 pos, BakedFont font, string text) {
+    public static RectangleF AddText(this Geometry<SpriteVert> b, Vector2 pos, BakedFont font, string text) {
         var (tw, th) = ((float)font.Texture.Width, (float)font.Texture.Height);
+        var startPos = pos;
+        var (maxX, maxY) = (pos.X, pos.Y);
         foreach (char c in text) {
             if (font.charMap.TryGetValue(c, out int i)) {
                 var bounds = font.GlyphBounds[i];
@@ -24,9 +26,11 @@ public static class FontExt {
                         new SpriteVert(new(xPos, yPos), new(xTex, yTex), Colour.White.RGBA));
                 var kerning = font.Kerning[i].Z;
                 pos += new Vector2(bounds.Width + kerning, 0);
+                maxX = MathF.Max(maxX, offset.X + bounds.Width);
+                maxY = MathF.Max(maxY, offset.Y + bounds.Height);
             }
         }
-        return b;
+        return new(startPos.X, startPos.Y, maxX - startPos.X, maxY - startPos.Y);
     }
 
     public static BakedFont LoadDefaultFont(this IDrawStuff ds, int pixelHeight = 32) {

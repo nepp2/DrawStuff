@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using static DrawStuff.ShaderLanguage;
 
@@ -13,8 +14,7 @@ public interface GPUGeometry<Vertex, Shape> : IDisposable
     void OverwriteAll(in Geometry<Vertex> builder);
 }
 
-public class Geometry<Vertex>
-    where Vertex : unmanaged {
+public class Geometry<Vertex> {
     public ValueBuffer<Vertex> Verts { get; } = new();
     public ValueBuffer<Triangle> Triangles { get; } = new();
 
@@ -41,6 +41,8 @@ public class Geometry<Vertex>
     }
 }
 
+public record struct TexturedVertex(Vector3 Pos, Vector3 Normal, Vector2 TexCoord);
+
 public static class GeometryExt {
 
     public static void AddVert(
@@ -53,8 +55,7 @@ public static class GeometryExt {
     public static void AddTriangle<Vertex>(
         this Geometry<Vertex> b,
         in Vertex v1, in Vertex v2, in Vertex v3
-    )
-    where Vertex : unmanaged {
+    ) {
         uint i = (uint)b.VertexCount;
         b.AddVert(v1);
         b.AddVert(v2);
@@ -65,8 +66,7 @@ public static class GeometryExt {
     public static void AddQuad<Vertex>(
         this Geometry<Vertex> b,
         in Vertex v1, in Vertex v2, in Vertex v3, in Vertex v4
-    )
-    where Vertex : unmanaged {
+    ) {
         uint i = (uint)b.VertexCount;
         b.AddVert(v3);
         b.AddVert(v4);
@@ -118,5 +118,29 @@ public static class GeometryExt {
             b.Verts.Push(vertexMap(v));
         foreach (var t in other.Triangles.AsReadOnlySpan())
             b.Triangles.Push(new(offset + t.A, offset + t.B, offset + t.C));
+    }
+
+    static void AddCubeFace<Vert>(
+    this Geometry<Vert> g,
+    Vector3 a, Vector3 b, Vector3 c, Vector3 d, TCQuad tp, Func<TexturedVertex, Vert> toVertex)
+    {
+        var norm = Vector3.Cross(b - a, c - a);
+        g.AddQuad(
+            toVertex(new(a, norm, tp.A)),
+            toVertex(new(b, norm, tp.B)),
+            toVertex(new(c, norm, tp.C)),
+            toVertex(new(d, norm, tp.D)));
+    }
+
+    public static Geometry<Vert> AddCube<Vert>(
+        this Geometry<Vert> g, TCQuad top, TCQuad side, TCQuad bottom, Func<TexturedVertex, Vert> toVertex)
+    {
+        g.AddCubeFace(new(1, 1, 0), new(1, 1, 1), new(0, 1, 1), new(0, 1, 0), top, toVertex);
+        g.AddCubeFace(new(0, 0, 0), new(0, 0, 1), new(1, 0, 1), new(1, 0, 0), bottom, toVertex);
+        g.AddCubeFace(new(0, 1, 1), new(1, 1, 1), new(1, 0, 1), new(0, 0, 1), side, toVertex);
+        g.AddCubeFace(new(1, 1, 0), new(0, 1, 0), new(0, 0, 0), new(1, 0, 0), side, toVertex);
+        g.AddCubeFace(new(1, 1, 1), new(1, 1, 0), new(1, 0, 0), new(1, 0, 1), side, toVertex);
+        g.AddCubeFace(new(0, 1, 0), new(0, 1, 1), new(0, 0, 1), new(0, 0, 0), side, toVertex);
+        return g;
     }
 }

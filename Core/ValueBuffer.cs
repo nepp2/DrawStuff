@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 
 namespace DrawStuff;
 
-public class ValueBuffer<T> : IEnumerable<T> where T : unmanaged {
+public class ValueBuffer<T> : IEnumerable<T> {
     public T[] Buffer = new T[1024];
     public int Count = 0;
 
@@ -46,9 +46,6 @@ public class ValueBuffer<T> : IEnumerable<T> where T : unmanaged {
 
     public static implicit operator ReadOnlySpan<T>(ValueBuffer<T> v) => v.AsSpan();
 
-    public ReadOnlySpan<U> CastElements<U>() where U : unmanaged
-        => MemoryMarshal.Cast<T, U>(AsSpan());
-
     public IEnumerator<T> GetEnumerator() {
         return Buffer.AsEnumerable().GetEnumerator();
     }
@@ -56,4 +53,10 @@ public class ValueBuffer<T> : IEnumerable<T> where T : unmanaged {
     IEnumerator IEnumerable.GetEnumerator() {
         return GetEnumerator();
     }
+}
+
+public static class ValueBufferExt {
+    public static ReadOnlySpan<U> CastElements<U, T>(this ValueBuffer<T> vb)
+        where U : unmanaged where T : unmanaged
+        => MemoryMarshal.Cast<T, U>(vb.AsSpan());
 }
