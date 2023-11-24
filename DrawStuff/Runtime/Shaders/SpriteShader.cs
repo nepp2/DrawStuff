@@ -3,7 +3,7 @@ namespace DrawStuff;
 using static DrawStuff.ShaderLanguage;
 
 [ShaderProgram]
-partial class SpriteShader {
+public partial class SpriteShader {
     Mat4 transform;
     Texture2D texture;
 
