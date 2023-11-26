@@ -243,8 +243,8 @@ public class CodegenCSharp {
         var classDef = Src.Lines(
             $"public partial class {info.Sym.Name} {{",
             Src.Indent(
-                $"public const string VertexSource = @\"[[VERTEX_SRC]]\";",
-                $"public const string FragmentSource = @\"[[FRAGMENT_SRC]]\";",
+                $"public static string VertexSource = @\"[[VERTEX_SRC]]\";",
+                $"public static string FragmentSource = @\"[[FRAGMENT_SRC]]\";",
                 @"",
                 @"public static readonly string[] VarNames = new string[] {",
                 $"    {string.Join(", ", info.Globals.Select(g => $"\"{g.Name}\""))}",
