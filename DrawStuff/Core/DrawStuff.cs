@@ -1,4 +1,5 @@
 ﻿using Silk.NET.Windowing;
+using System.Drawing;
 using System.Numerics;
 
 namespace DrawStuff;
@@ -20,7 +21,8 @@ public interface IDrawStuff : IDisposable {
         Matrix4x4.CreateScale(2f / Window.Size.X, -2f / Window.Size.Y, 1f)
             * Matrix4x4.CreateTranslation(-1f, 1f, 0f);
 
-    void ClearWindow();
+    void ClearWindow(Color c);
+    void ClearWindow() => ClearWindow(Color.Black);
     void ClearDepth();
 
     Texture LoadTexture(string path) => Texture.Load(path);

@@ -27,5 +27,9 @@
   <ItemGroup>
     <EmbeddedResource Include="Fonts/Roboto-Black.ttf" />
   </ItemGroup>
+
+  <Target Name="ClearNugetCache" AfterTargets="Build">
+    <RemoveDir Directories="$(NuGetPackageRoot)drawstuff.runtime" />
+  </Target>
   
 </Project>

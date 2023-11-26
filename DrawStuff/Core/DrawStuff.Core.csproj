@@ -6,9 +6,9 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <PackageOutputPath>..\Packages</PackageOutputPath>
     <IncludeSymbols>True</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <PackageOutputPath>..\Packages</PackageOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,5 +18,9 @@
     <PackageReference Include="StbImageSharp" Version="2.27.13" />
     <PackageReference Include="StbTrueTypeSharp" Version="1.26.11" />
   </ItemGroup>
+
+  <Target Name="ClearNugetCache" AfterTargets="Build">
+    <RemoveDir Directories="$(NuGetPackageRoot)drawstuff.core" />
+  </Target>
   
 </Project>

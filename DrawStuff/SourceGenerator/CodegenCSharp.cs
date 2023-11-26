@@ -157,7 +157,7 @@ public class CodegenCSharp {
 
     private (string vertexType, SrcNode src) GenerateVertexCode(ArgumentInfo[] vertexInputs) {
         var vertexAttribs = Src.Lines(
-            @"public static readonly GLAttribute[] VertexAttributes = new GLAttribute[] {",
+            @"public static GLAttribute[] VertexAttributes() => new GLAttribute[] {",
             Src.Indent(vertexInputs.Select(v => {
                 var attrib = GetVertexAttribInfo(v.Type, v.Loc);
                 return $"new (\"{v.Name}\", {attrib.NumVals}, {attrib.PtrType}),";
@@ -243,17 +243,17 @@ public class CodegenCSharp {
         var classDef = Src.Lines(
             $"public partial class {info.Sym.Name} {{",
             Src.Indent(
-                $"public static string VertexSource = @\"[[VERTEX_SRC]]\";",
-                $"public static string FragmentSource = @\"[[FRAGMENT_SRC]]\";",
+                $"public static string VertexSource() => @\"[[VERTEX_SRC]]\";",
+                $"public static string FragmentSource() => @\"[[FRAGMENT_SRC]]\";",
                 @"",
-                @"public static readonly string[] VarNames = new string[] {",
+                @"public static string[] VarNames() => new string[] {",
                 $"    {string.Join(", ", info.Globals.Select(g => $"\"{g.Name}\""))}",
                 @"};",
                 @"",
                 vertexTypeDef,
                 varsCode,
                 $"public static ShaderConfig<{vertexType}, {varsType}> Config =>",
-                @"    new(VertexSource, FragmentSource, SetShaderVars, VarNames, VertexAttributes);"
+                @"    new(VertexSource(), FragmentSource(), SetShaderVars, VarNames(), VertexAttributes());"
             ),
             @"}"
         );

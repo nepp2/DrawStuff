@@ -1,5 +1,6 @@
 ﻿using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
+using System.Drawing;
 
 namespace DrawStuff.OpenGL;
 
@@ -31,8 +32,10 @@ public class GLDrawStuff : IDrawStuff {
         where Vertex : unmanaged
             => new GLGeometry<Vertex, Triangle>(this, config.VertexAttribs);
 
-    public void ClearWindow() {
-        GetGL().Clear((uint)ClearBufferMask.ColorBufferBit | (uint)ClearBufferMask.DepthBufferBit);
+    public void ClearWindow(Color c) {
+        var gl = GetGL();
+        gl.ClearColor(c);
+        gl.Clear((uint)ClearBufferMask.ColorBufferBit | (uint)ClearBufferMask.DepthBufferBit);
     }
 
     public void ClearDepth() {

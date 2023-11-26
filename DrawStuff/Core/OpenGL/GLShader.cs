@@ -29,6 +29,7 @@ public class GLShader<Vertex, Vars> : Shader<Vertex, Vars>
         gl.Enable(EnableCap.CullFace);
         gl.Enable(EnableCap.DepthTest);
         gl.DepthRange(-100000, 100000);
+        gl.Viewport(draw.Window.FramebufferSize);
         handle.Bind();
         config.SetVars(handle, uniformLocations, vars);
         var glShapes = (GLGeometry<Vertex, ShapeType>)shapes;
