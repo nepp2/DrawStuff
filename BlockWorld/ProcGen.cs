@@ -1,12 +1,12 @@
 ﻿
 using DotnetNoise;
 using DrawStuff;
-using System;
 using System.Diagnostics;
 using System.Numerics;
-using CubeVert = CubeShader.VertexData;
 
-namespace CubeWorld;
+namespace BlockWorld;
+
+using CubeVert = CubeShader.VertexData;
 
 public record struct BlockTextures(TCQuad Top, TCQuad Side, TCQuad Bottom);
 
