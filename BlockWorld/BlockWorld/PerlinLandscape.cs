@@ -6,14 +6,14 @@ using System.Numerics;
 
 namespace BlockWorld;
 
-using CubeVert = CubeShader.VertexData;
+using BlockVertex = BlockShader.VertexData;
 
 public record struct BlockTextures(TCQuad Top, TCQuad Side, TCQuad Bottom);
 
 // Block face texture atlas
 public record BlockAtlas(GPUTexture Tex, TCQuad GrassTop, TCQuad GrassSide, TCQuad Dirt) {
     public static BlockAtlas Load(IDrawStuff ds) {
-        var atlas = ds.LoadTexture("../../../Textures-16.png");
+        var atlas = ds.LoadTexture("../../../../Assets/Textures-16.png");
         return new(ds.LoadGPUTexture(atlas),
             atlas.GetSubtexture(16 * 3, 16 * 16, 16, 16),
             atlas.GetSubtexture(16 * 3, 16 * 29, 16, 16),
@@ -41,8 +41,8 @@ public static class GeometryExtensions {
         return sb;
     }
 
-    static void AddFace(
-        this Geometry<CubeVert> g, Vector3 pos,
+    public static void AddBlockQuad(
+        this Geometry<BlockVertex> g, Vector3 pos,
         Vector3 a, Vector3 b, Vector3 c, Vector3 d, TCQuad tp)
     {
         var norm = Vector3.Cross(b - a, c - a);
@@ -53,8 +53,8 @@ public static class GeometryExtensions {
             new(pos + d, norm, tp.D));
     }
 
-    public static Geometry<CubeVert> AddBlockFaces(
-        this Geometry<CubeVert> g,
+    public static Geometry<BlockVertex> AddBlockFaces(
+        this Geometry<BlockVertex> g,
         Chunk chunk,
         in BlockTextures tex,
         in Vector3 offset,
@@ -62,22 +62,22 @@ public static class GeometryExtensions {
     {
         var pos = offset + new Vector3(x, y, z);
         if (!chunk.Get(x, y + 1, z))
-            g.AddFace(pos, new(1, 1, 0), new(1, 1, 1), new(0, 1, 1), new(0, 1, 0), tex.Top);
+            g.AddBlockQuad(pos, new(1, 1, 0), new(1, 1, 1), new(0, 1, 1), new(0, 1, 0), tex.Top);
         if (!chunk.Get(x, y - 1, z))
-            g.AddFace(pos, new(0, 0, 0), new(0, 0, 1), new(1, 0, 1), new(1, 0, 0), tex.Bottom);
+            g.AddBlockQuad(pos, new(0, 0, 0), new(0, 0, 1), new(1, 0, 1), new(1, 0, 0), tex.Bottom);
         if (!chunk.Get(x, y, z + 1))
-            g.AddFace(pos, new(0, 1, 1), new(1, 1, 1), new(1, 0, 1), new(0, 0, 1), tex.Side);
+            g.AddBlockQuad(pos, new(0, 1, 1), new(1, 1, 1), new(1, 0, 1), new(0, 0, 1), tex.Side);
         if (!chunk.Get(x, y, z - 1))
-            g.AddFace(pos, new(1, 1, 0), new(0, 1, 0), new(0, 0, 0), new(1, 0, 0), tex.Side);
+            g.AddBlockQuad(pos, new(1, 1, 0), new(0, 1, 0), new(0, 0, 0), new(1, 0, 0), tex.Side);
         if (!chunk.Get(x + 1, y, z))
-            g.AddFace(pos, new(1, 1, 1), new(1, 1, 0), new(1, 0, 0), new(1, 0, 1), tex.Side);
+            g.AddBlockQuad(pos, new(1, 1, 1), new(1, 1, 0), new(1, 0, 0), new(1, 0, 1), tex.Side);
         if (!chunk.Get(x - 1, y, z))
-            g.AddFace(pos, new(0, 1, 0), new(0, 1, 1), new(0, 0, 1), new(0, 0, 0), tex.Side);
+            g.AddBlockQuad(pos, new(0, 1, 0), new(0, 1, 1), new(0, 0, 1), new(0, 0, 0), tex.Side);
         return g;
     }
 
     public static void GenerateBlock(
-        this Geometry<CubeVert> world,
+        this Geometry<BlockVertex> world,
         BlockAtlas atlas, Chunk chunk, in Vector3 offset,
         int x, int y, int z) {
         if (chunk.Get(x, y, z)) {
@@ -91,7 +91,7 @@ public static class GeometryExtensions {
     }
 
     public static void GenerateChunkGeometry(
-        this Geometry<CubeVert> world,
+        this Geometry<BlockVertex> world,
         BlockAtlas atlas,
         Chunk chunk, Vector3 offset) {
         for (int x = 0; x < Chunk.Size; ++x)

@@ -64,8 +64,12 @@ public class ShaderDiagnostic {
 }
 
 public record ShaderInfo(
-    ITypeSymbol Sym, ClassDeclarationSyntax Syntax,
-    MethodInfo Vertex, MethodInfo Fragment, ArgumentInfo[] Globals,
+    ITypeSymbol Sym,
+    ClassDeclarationSyntax Syntax,
+    MethodInfo Vertex,
+    MethodInfo Fragment,
+    MethodInfo[] Helpers,
+    ArgumentInfo[] Globals,
     ShaderTypes Types);
 
 public class ShaderTypes {
@@ -270,7 +274,8 @@ public class ShaderAnalyze {
         if(Errors.Any())
             return Fail(out result);
 
-        return Success(out result, new(Sym, Syntax, vertex!, fragment!, orderedGlobals, Types));
+        return Success(out result,
+            new(Sym, Syntax, vertex!, fragment!, helpers.ToArray(), orderedGlobals, Types));
     }
 
     public static bool Process(List<Diagnostic> errors, ClassInfo c, out ShaderInfo result) {

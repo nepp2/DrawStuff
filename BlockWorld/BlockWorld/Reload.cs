@@ -4,14 +4,9 @@
 
 namespace BlockWorld;
 
-public record GameLoopFunctions(Action<double> OnUpdate, Action<double> OnRender);
+public record GameLoopHandlers(Action<double> OnUpdate, Action<double> OnRender);
 
-public interface GameSetup {
-    public IWindow CreateWindow();
-    GameLoopFunctions Setup(IWindow w);
-}
-
-static class ReloadHandler {
+public static class ReloadHandler {
     public static void ClearCache(Type[]? updatedTypes) {
         Console.WriteLine("ReloadHandler.ClearCache");
     }
@@ -23,7 +18,7 @@ static class ReloadHandler {
 
     private static volatile bool ReloadFlag = false;
 
-    private static GameLoopFunctions? ActiveLoop = null;
+    private static GameLoopHandlers? ActiveLoop = null;
 
     private static void ClearActiveLoop(IWindow window) {
         if (ActiveLoop != null) {
@@ -32,31 +27,25 @@ static class ReloadHandler {
         }
     }
 
-    private static void DoSetup(IWindow window, GameSetup game) {
-        ActiveLoop = game.Setup(window);
-        window.Update += ActiveLoop.OnUpdate;
-        window.Render += ActiveLoop.OnRender;
+    private static void AddLoopHandlers(IWindow window) {
+        window.Update += ActiveLoop!.OnUpdate;
+        window.Render += ActiveLoop!.OnRender;
     }
 
-    public static void StartReloadingWindow(GameSetup game) {
-        var window = game.CreateWindow();
+    public static void StartReloadingWindow(Func<IWindow> createWindow, Func<IWindow, GameLoopHandlers> startFunc) {
+        var window = createWindow();
         window.Update += _ => {
             if (ReloadFlag) {
                 ClearActiveLoop(window);
-                DoSetup(window, game);
+                ActiveLoop = startFunc(window);
+                AddLoopHandlers(window);
                 ReloadFlag = false;
             }
         };
         window.Load += () => {
-            DoSetup(window, game);
+            ActiveLoop = startFunc(window);
+            AddLoopHandlers(window);
         };
         window.Run();
-    }
-}
-
-public class Program {
-
-    public static void Main(string[] args) {
-        ReloadHandler.StartReloadingWindow(new BlockWorldSetup());
     }
 }

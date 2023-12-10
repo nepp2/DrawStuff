@@ -9,9 +9,12 @@ public partial class SpriteShader {
 
     public record struct ShadeInput(Vec4 Pos, Vec2 TexCoord, RGBA Tint);
 
+    RGBA ToColour(uint col) =>
+        vec4(col >> 24, (col >> 16) & 255u, (col >> 8) & 255u, col & 255u) / 255f;
+
     public ShadeInput Vertex(Vec2 pos, Vec2 tc, uint col) {
-        var tint = vec4(col >> 24, (col >> 16) & 255u, (col >> 8) & 255u, col & 255u) / 255f;
-        return new(transform * vec4(pos, 0, 1), tc, tint);
+        //var tint = vec4(col >> 24, (col >> 16) & 255u, (col >> 8) & 255u, col & 255u) / 255f;
+        return new(transform * vec4(pos, 0, 1), tc, ToColour(col));
     }
 
     public RGBA Fragment(ShadeInput v) {

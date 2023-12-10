@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using System.Drawing;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using static DrawStuff.ShaderLanguage;
@@ -96,6 +97,25 @@ public static class GeometryExt {
         b.AddTriangle(new(i + 1, i + 2, i + 3));
     }
 
+    public delegate Vert ToVertexTC<Vert>(float xPos, float yPos, Vector2 tcPos);
+
+    [MethodImpl(MethodImplOptions.AggressiveOptimization | MethodImplOptions.AggressiveInlining)]
+    public static void AddQuad<Vertex>(
+    this Geometry<Vertex> b, RectangleF r,
+    TCQuad tc,
+    ToVertexTC<Vertex> toVert)
+        where Vertex : unmanaged {
+        uint i = (uint)b.VertexCount;
+        float x = r.X, y = r.Y, w = r.Width, h = r.Height;
+        var (x2, y2) = (x + w, y + h);
+        b.AddVert(toVert(x2, y2, tc.C));
+        b.AddVert(toVert(x2, y, tc.D));
+        b.AddVert(toVert(x, y, tc.A));
+        b.AddVert(toVert(x, y2, tc.B));
+        b.AddTriangle(new(i + 0, i + 1, i + 3));
+        b.AddTriangle(new(i + 1, i + 2, i + 3));
+    }
+
     public static void Append<Vertex>(
         this Geometry<Vertex> b,
         Geometry<Vertex> other)
@@ -120,7 +140,7 @@ public static class GeometryExt {
             b.Triangles.Push(new(offset + t.A, offset + t.B, offset + t.C));
     }
 
-    static void AddCubeFace<Vert>(
+    public static void AddQuadFace<Vert>(
     this Geometry<Vert> g,
     Vector3 a, Vector3 b, Vector3 c, Vector3 d, TCQuad tp, Func<TexturedVertex, Vert> toVertex)
     {
@@ -135,12 +155,12 @@ public static class GeometryExt {
     public static Geometry<Vert> AddCube<Vert>(
         this Geometry<Vert> g, TCQuad top, TCQuad side, TCQuad bottom, Func<TexturedVertex, Vert> toVertex)
     {
-        g.AddCubeFace(new(1, 1, 0), new(1, 1, 1), new(0, 1, 1), new(0, 1, 0), top, toVertex);
-        g.AddCubeFace(new(0, 0, 0), new(0, 0, 1), new(1, 0, 1), new(1, 0, 0), bottom, toVertex);
-        g.AddCubeFace(new(0, 1, 1), new(1, 1, 1), new(1, 0, 1), new(0, 0, 1), side, toVertex);
-        g.AddCubeFace(new(1, 1, 0), new(0, 1, 0), new(0, 0, 0), new(1, 0, 0), side, toVertex);
-        g.AddCubeFace(new(1, 1, 1), new(1, 1, 0), new(1, 0, 0), new(1, 0, 1), side, toVertex);
-        g.AddCubeFace(new(0, 1, 0), new(0, 1, 1), new(0, 0, 1), new(0, 0, 0), side, toVertex);
+        g.AddQuadFace(new(1, 1, 0), new(1, 1, 1), new(0, 1, 1), new(0, 1, 0), top, toVertex);
+        g.AddQuadFace(new(0, 0, 0), new(0, 0, 1), new(1, 0, 1), new(1, 0, 0), bottom, toVertex);
+        g.AddQuadFace(new(0, 1, 1), new(1, 1, 1), new(1, 0, 1), new(0, 0, 1), side, toVertex);
+        g.AddQuadFace(new(1, 1, 0), new(0, 1, 0), new(0, 0, 0), new(1, 0, 0), side, toVertex);
+        g.AddQuadFace(new(1, 1, 1), new(1, 1, 0), new(1, 0, 0), new(1, 0, 1), side, toVertex);
+        g.AddQuadFace(new(0, 1, 0), new(0, 1, 1), new(0, 0, 1), new(0, 0, 0), side, toVertex);
         return g;
     }
 }

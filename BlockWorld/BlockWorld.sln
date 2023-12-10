@@ -3,7 +3,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.6.33723.286
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BlockWorld", "BlockWorld.csproj", "{27A6527A-247B-4F61-AF27-7A47EAACE854}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BlockWorld", "BlockWorld\BlockWorld.csproj", "{27A6527A-247B-4F61-AF27-7A47EAACE854}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WorldViewer", "WorldViewer\WorldViewer.csproj", "{BC757672-1AB6-4DDB-8DBA-F897D5AF278E}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ShapeViewer", "ShapeViewer\ShapeViewer.csproj", "{E7AD6FB2-2023-4930-B6F8-FA8AA9D546AA}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IsoGame", "IsoGame\IsoGame.csproj", "{1BA393AC-40DA-42A5-9601-51830577CE95}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +21,18 @@ Global
 		{27A6527A-247B-4F61-AF27-7A47EAACE854}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{27A6527A-247B-4F61-AF27-7A47EAACE854}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{27A6527A-247B-4F61-AF27-7A47EAACE854}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BC757672-1AB6-4DDB-8DBA-F897D5AF278E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BC757672-1AB6-4DDB-8DBA-F897D5AF278E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BC757672-1AB6-4DDB-8DBA-F897D5AF278E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BC757672-1AB6-4DDB-8DBA-F897D5AF278E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E7AD6FB2-2023-4930-B6F8-FA8AA9D546AA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E7AD6FB2-2023-4930-B6F8-FA8AA9D546AA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E7AD6FB2-2023-4930-B6F8-FA8AA9D546AA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E7AD6FB2-2023-4930-B6F8-FA8AA9D546AA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1BA393AC-40DA-42A5-9601-51830577CE95}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1BA393AC-40DA-42A5-9601-51830577CE95}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1BA393AC-40DA-42A5-9601-51830577CE95}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1BA393AC-40DA-42A5-9601-51830577CE95}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

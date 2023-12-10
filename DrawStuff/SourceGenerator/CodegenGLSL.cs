@@ -27,31 +27,41 @@ record struct GLSLArg(string Name, ValueType Type);
 
 class CodegenGLSL {
 
-    private SemanticModel model;
+    SemanticModel Model;
+    List<Diagnostic> Errors { get; } = new();
+    CompileMode Mode;
+    ShaderInfo Shader;
+    MethodInfo Method;
 
-    private List<Diagnostic> errors { get; } = new();
+    Dictionary<string, MethodInfo> Helpers = new();
+    HashSet<string> HelpersUsed = new();
+    Queue<MethodInfo> HelperQueue = new();
 
-    private CompileMode mode;
-
-    private ShaderInfo shader;
-    private MethodInfo method;
-
-    private GLSLArg[] Globals;
-    private GLSLArg[] Inputs;
-    private GLSLArg? OutputVar = null;
+    GLSLArg[] Globals;
+    GLSLArg[] Inputs;
+    GLSLArg? OutputVar = null;
 
     Dictionary<string, string> IdentifierMap = new() {
         { "rgba", "vec4" }
     };
 
-    public CodegenGLSL(List<Diagnostic> errors, SemanticModel model, CompileMode mode, ShaderInfo shader, MethodInfo method) {
-        this.errors = errors;
-        this.model = model;
-        this.mode = mode;
-        this.shader = shader;
-        this.method = method;
+    public CodegenGLSL(
+        List<Diagnostic> errors,
+        SemanticModel model,
+        CompileMode mode,
+        ShaderInfo shader,
+        MethodInfo method)
+    {
+        Errors = errors;
+        Model = model;
+        Mode = mode;
+        Shader = shader;
+        Method = method;
 
         Globals = shader.Globals.Select(ToGLSLArg).ToArray();
+        foreach(var h in shader.Helpers) {
+            Helpers[h.Sym.Name] = h;
+        }
 
         ArgumentInfo? fragIn = shader.Fragment.Inputs.Length > 0
             ? shader.Fragment.Inputs[0]
@@ -91,8 +101,8 @@ class CodegenGLSL {
     SrcNode GenReturn(ExpressionSyntax e) {
         if (OutputVar is GLSLArg o) {
             var assignPos = Src.Empty();
-            if (mode is CompileMode.VertexEntryPoint) {
-                if (method.Output is Vec4Type) {
+            if (Mode is CompileMode.VertexEntryPoint) {
+                if (Method.Output is Vec4Type) {
                     assignPos = Src.Expr("gl_Position = ", o.Name, ";");
                 }
                 else {
@@ -156,32 +166,37 @@ class CodegenGLSL {
     }
 
     ValueType? GetValueType(SyntaxNode e) {
-        if(model.GetTypeInfo(e).Type is ITypeSymbol t)
-            return shader.Types.TryGet(t);
+        if(Model.GetTypeInfo(e).Type is ITypeSymbol t)
+            return Shader.Types.TryGet(t);
         return null;
     }
 
     void ValidateSymbol(SyntaxNode n) {
-        var sym = model.GetSymbolInfo(n).Symbol;
-        if (sym is IParameterSymbol or ILocalSymbol) {
+        var sym = Model.GetSymbolInfo(n).Symbol;
+        if (sym is IParameterSymbol or ILocalSymbol)
             return;
-        }
         if (sym is IMethodSymbol method) {
-            if(method.ContainingType.Name == "ShaderLanguage") {
+            if(method.ContainingType.Name == "ShaderLanguage")
                 return;
+            if (method.ContainingType.Name == this.Method.Sym.ContainingType.Name) {
+                if(Helpers.TryGetValue(method.Name, out var h)) {
+                    if(HelpersUsed.Add(method.Name)) {
+                        HelperQueue.Enqueue(h);
+                    }
+                    return;
+                }
             }
         }
         if (sym is IFieldSymbol field) {
-            if(field.ContainingType.Name ==  this.method.Sym.ContainingType.Name) {
+            if(field.ContainingType.Name ==  this.Method.Sym.ContainingType.Name)
                 return;
-            }
         }
         Error(n, $"Unknown symbol {n}");
     }
 
     T ValidateType<T>(T n) where T : SyntaxNode {
-        if (model.GetTypeInfo(n).Type is ITypeSymbol t) {
-            if(shader.Types.TryGet(t) == null) {
+        if (Model.GetTypeInfo(n).Type is ITypeSymbol t) {
+            if(Shader.Types.TryGet(t) == null) {
                 Error(n, $"Type '{t}' is not supported in shader code");
             }
         }
@@ -189,14 +204,14 @@ class CodegenGLSL {
     }
 
     bool IsSpecificMethod(SyntaxNode n, string methodName) {
-        var sym = model.GetSymbolInfo(n).Symbol;
+        var sym = Model.GetSymbolInfo(n).Symbol;
         return sym is IMethodSymbol method
             && method.Name == methodName
             && method.ContainingType.Name == "ShaderLanguage";
     }
 
     void Error(SyntaxNode n, string message) {
-        errors.Add(Diagnostic.Create(ShaderDiagnostic.InvalidShader, n.GetLocation(), message));
+        Errors.Add(Diagnostic.Create(ShaderDiagnostic.InvalidShader, n.GetLocation(), message));
     }
 
     SrcNode GenIdentifier(IdentifierNameSyntax e) {
@@ -223,7 +238,7 @@ class CodegenGLSL {
     }
 
     SrcNode GenLiteral(LiteralExpressionSyntax e) {
-        var val = model.GetConstantValue(e);
+        var val = Model.GetConstantValue(e);
         if (val.HasValue && val.Value is float f) {
             return ((double)f).ToString();
         }
@@ -232,7 +247,7 @@ class CodegenGLSL {
 
     SrcNode GenInvocation(InvocationExpressionSyntax e) {
         if(IsSpecificMethod(e, "discard") && !e.ArgumentList.Arguments.Any()) {
-            if(mode != CompileMode.FragmentEntryPoint) {
+            if(Mode != CompileMode.FragmentEntryPoint) {
                 Error(e, "Can only use discard in the fragment shader");
             }
             return "discard";
@@ -290,7 +305,7 @@ class CodegenGLSL {
             sb.AppendLine($"uniform {TypeToString(u.Type)} {u.Name};");
         }
         sb.AppendLine();
-        foreach(var cs in shader.Types.CustomStructs.Values) {
+        foreach(var cs in Shader.Types.CustomStructs.Values) {
             sb.AppendLine($"struct {cs.Name} {{");
             foreach(var (n, t) in cs.Fields) {
                 sb.AppendLine($"    {TypeToString(t)} {n};");
@@ -298,7 +313,7 @@ class CodegenGLSL {
             sb.AppendLine("};");
             sb.AppendLine();
         }
-        if (mode is CompileMode.VertexEntryPoint) {
+        if (Mode is CompileMode.VertexEntryPoint) {
             int vertexAttribLocation = 0;
             foreach (var i in Inputs) {
                 sb.AppendLine($"layout (location = {vertexAttribLocation++}) in {TypeToString(i.Type)} {i.Name};");
@@ -306,13 +321,13 @@ class CodegenGLSL {
         }
         else {
             foreach (var i in Inputs) {
-                if(i.Type is UInt32Type && mode is CompileMode.FragmentEntryPoint)
+                if(i.Type is UInt32Type && Mode is CompileMode.FragmentEntryPoint)
                     sb.Append($"flat ");
                 sb.AppendLine($"in {TypeToString(i.Type)} {i.Name};");
             }
         }
         if(OutputVar is GLSLArg o) {
-            if (o.Type is UInt32Type && mode is CompileMode.VertexEntryPoint)
+            if (o.Type is UInt32Type && Mode is CompileMode.VertexEntryPoint)
                 sb.Append($"flat ");
             sb.AppendLine($"out {TypeToString(o.Type)} {o.Name};");
         }
@@ -321,14 +336,9 @@ class CodegenGLSL {
     MethodDeclarationSyntax GetDeclarationSyntax(IMethodSymbol sym) =>
         (MethodDeclarationSyntax)sym.DeclaringSyntaxReferences.First().GetSyntax();
 
-    string GenShader() {
-        // Create an IndentedTextWriter and set the tab string to use
-        // as the indentation string for each indentation level.
-        var sb = new StringBuilder();
-        GenHeader(sb);
-
+    SrcNode GenerateFunction() {
         SrcNode body;
-        var decl = GetDeclarationSyntax(method.Sym);
+        var decl = GetDeclarationSyntax(Method.Sym);
         if (decl.Body is not null) {
             body = GenBlock(decl.Body);
         }
@@ -339,19 +349,48 @@ class CodegenGLSL {
             Error(decl, "Method has no body");
             body = "[[empty]]";
         }
-        var main = Src.Lines(
-            "void main() {",
-            Src.Indent(body),
-            "}"
-        );
-        main.WriteTree(sb);
-        return sb.ToString();
+        if (Mode is CompileMode.FragmentEntryPoint or CompileMode.VertexEntryPoint) {
+            return Src.Lines(
+                "void main() {",
+                Src.Indent(body),
+                "}"
+            );
+        }
+        else {
+            var args = Method.Inputs.Select(a => $"{TypeToString(a.Type)} {a.Name}");
+            return Src.Lines(
+                $"{TypeToString(Method.Output)} {Method.Sym.Name}({string.Join(", ", args)}) {{",
+                Src.Indent(body),
+                "}"
+            );
+        }
+    }
+
+    SrcNode GenerateHelpers() {
+        List<SrcNode> funcs = new();
+        while (HelperQueue.Count > 0) {
+            var m = HelperQueue.Dequeue();
+            var cg = new CodegenGLSL(Errors, Model, CompileMode.SharedFunction, Shader, m);
+            funcs.Add(cg.GenerateFunction());
+        }
+        funcs.Reverse();
+        return Src.Lines(funcs.ToArray());
     }
 
     public static string Compile(
         List<Diagnostic> errors, SemanticModel model, CompileMode mode, ShaderInfo shader, MethodInfo method)
     {
         var compiler = new CodegenGLSL(errors, model, mode, shader, method);
-        return compiler.GenShader();
+
+        var sb = new StringBuilder();
+        compiler.GenHeader(sb);
+        var main = compiler.GenerateFunction();
+        var functions = Src.Lines(
+            compiler.GenerateHelpers(),
+            main
+        );
+        functions.WriteTree(sb);
+
+        return sb.ToString();
     }
 }
