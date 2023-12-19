@@ -11,19 +11,20 @@ namespace DrawStuff;
 
 public record struct TextRaster(byte[] Data, int Width, int Height);
 
-public record BakedFont(
-    GPUTexture Texture,
+public record FontInfo(
     List<Rectangle> GlyphBounds,
     List<Rectangle> Cropping,
     List<char> Chars,
     int LineSpacing,
     int Spacing,
     List<Vector3> Kerning,
-    char DefaultChar)
-{
+    char DefaultChar) {
     public Dictionary<char, int> charMap =
         Chars.Select((c, i) => (c, i)).ToDictionary(tup => tup.c, tup => tup.i);
 }
+
+public record BakedFont(GPUTexture Texture, FontInfo Info);
+//public record GPUFont(GPUTexture Texture, FontData Data);
 
 public class Font {
     private const int FontBitmapWidth = 1024;
@@ -91,9 +92,8 @@ public class Font {
             kerning.Add(new (0, bounds.Width, character.XAdvance - bounds.Width));
         }
 
-        return new (
-            fontTexture, glyphBounds, cropping,
-            chars, 20, 0, kerning, ' ');
+        var data = new FontInfo(glyphBounds, cropping, chars, 20, 0, kerning, ' ');
+        return new(fontTexture, data);
     }
 }
 

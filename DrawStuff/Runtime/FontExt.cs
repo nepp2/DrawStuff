@@ -11,10 +11,11 @@ public static class FontExt {
         var (tw, th) = ((float)font.Texture.Width, (float)font.Texture.Height);
         var startPos = pos;
         var (maxX, maxY) = (pos.X, pos.Y);
+        var info = font.Info;
         foreach (char c in text) {
-            if (font.charMap.TryGetValue(c, out int i)) {
-                var bounds = font.GlyphBounds[i];
-                var cropping = font.Cropping[i];
+            if (info.charMap.TryGetValue(c, out int i)) {
+                var bounds = info.GlyphBounds[i];
+                var cropping = info.Cropping[i];
                 var offset = pos + new Vector2(cropping.X, cropping.Y);
                 b.AddQuad(
                     offset.X,
@@ -24,7 +25,7 @@ public static class FontExt {
                     bounds.X / tw, bounds.Y / th, bounds.Width / tw, bounds.Height / th,
                     (xPos, yPos, xTex, yTex) =>
                         new SpriteVert(new(xPos, yPos), new(xTex, yTex), Colour.White.RGBA));
-                var kerning = font.Kerning[i].Z;
+                var kerning = info.Kerning[i].Z;
                 pos += new Vector2(bounds.Width + kerning, 0);
                 maxX = MathF.Max(maxX, offset.X + bounds.Width);
                 maxY = MathF.Max(maxY, offset.Y + bounds.Height);
