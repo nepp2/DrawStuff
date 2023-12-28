@@ -26,16 +26,16 @@ void OutputCode(string code) {
 
 void OutputResult(TestResult r) {
     Console.WriteLine($"Shader test '{r.Name}' {(r.Failed ? "failed:" : "succeeded.")}");
-    Console.WriteLine($"Shader test '{r.Name}' CS extension class template:");
-    if (r.Output is CodegenOutput o) {
-        OutputCode(o.CSharpTemplate.ToString());
-        Console.WriteLine($"Shader test '{r.Name}' vertex source:");
-        OutputCode(o.VertexSrc);
-        Console.WriteLine($"Shader test '{r.Name}' fragment source:");
-        OutputCode(o.FragmentSrc);
+    foreach(var sr in r.ShaderResults) {
+        Console.WriteLine($"Shader '{sr.Name}' CS extension class template:");
+        OutputCode(sr.CSharpTemplate.ToString());
+        Console.WriteLine($"Shader '{sr.Name}' vertex source:");
+        OutputCode(sr.VertexSrc);
+        Console.WriteLine($"Shader '{sr.Name}' fragment source:");
+        OutputCode(sr.FragmentSrc);
         if (r.Errors.Any() || r.Warnings.Any()) {
-            Console.WriteLine($"Shader test '{r.Name}' full source:");
-            OutputCode(o.CSharpSrc);
+            Console.WriteLine($"Shader '{sr.Name}' full source:");
+            OutputCode(sr.CSharpSrc);
         }
     }
     if (r.Warnings.Any()) {
@@ -59,7 +59,7 @@ foreach (var r in results.Where(r => r.Failed))
     OutputResult(r);
 
 record TestResult(string Name) {
-    public CodegenOutput? Output = null;
+    public List<ShaderResult> ShaderResults = new();
     public List<string> Errors = new();
     public List<string> Warnings = new();
     public bool Failed => Errors.Any();
@@ -100,48 +100,57 @@ class ShaderTests {
 
         // Parse and analyze the input source file
         SyntaxTree inputSyntax = CSharpSyntaxTree.ParseText(inputSrc, parseOptions);
-        var compilation = CSharpCompilation.Create(shaderName)
+        Compilation compilation = CSharpCompilation.Create(shaderName)
             .AddReferences(references)
             .AddSyntaxTrees(inputSyntax);
+
+        var generator = new ShaderGenerator(r.ShaderResults);
+
+        var srcGenDriver = CSharpGeneratorDriver.Create(generator);
+        srcGenDriver.RunGeneratorsAndUpdateCompilation(
+            compilation, out compilation, out var generatorDiagnostics);
+        r.AddDiagnostics(generatorDiagnostics);
+        if (r.Failed) return r;
+
         SemanticModel model = compilation.GetSemanticModel(inputSyntax);
         r.AddDiagnostics(model.GetDiagnostics());
         if (r.Failed) return r;
 
         // Find the shader class
-        var visitor = new ClassCollector();
-        visitor.Visit(inputSyntax.GetRoot());
-        if(visitor.classes.Count != 1) {
-            r.Errors.Add($"Expected exactly one class in test source, found {visitor.classes.Count}");
-        }
-        if(r.Failed) return r;
+        //var visitor = new ClassCollector();
+        //visitor.Visit(inputSyntax.GetRoot());
+        //if(visitor.classes.Count != 1) {
+        //    r.Errors.Add($"Expected exactly one class in test source, found {visitor.classes.Count}");
+        //}
+        //if(r.Failed) return r;
 
         // Run the source generator on the input source
-        var c = visitor.classes[0];
-        if(model.GetDeclaredSymbol(c) is INamedTypeSymbol sym) {
-            var diagnostics = new List<Diagnostic>();
-            try {
-                var classInfo = new ClassInfo { Type = sym, Syntax = c };
-                if (ShaderAnalyze.Process(diagnostics, classInfo, out var shaderInfo)) {
-                    r.Output = CodegenCSharp.GenerateClassExtension(diagnostics, shaderInfo, model);
-                }
-            }
-            catch (ShaderGenException e) {
-                var msg = $"Internal ShaderGen exception: {e.Message}";
-                r.Errors.Add(msg);
-            }
-            r.AddDiagnostics(diagnostics);
-        }
-        else {
-            r.Errors.Add("No type symbol was found for shader class");
-        }
-        if (r.Failed) return r;
+        //var c = visitor.classes[0];
+        //if(model.GetDeclaredSymbol(c) is INamedTypeSymbol sym) {
+        //    var diagnostics = new List<Diagnostic>();
+        //    try {
+        //        var def = new ShaderDefinition { Type = sym, Syntax = c };
+        //        if (ShaderAnalyze.ProcessShader(diagnostics, def, out var shaderInfo)) {
+        //            r.Output = CodegenGL.GenerateClassExtension(diagnostics, shaderInfo, model);
+        //        }
+        //    }
+        //    catch (ShaderGenException e) {
+        //        var msg = $"Internal ShaderGen exception: {e.Message}";
+        //        r.Errors.Add(msg);
+        //    }
+        //    r.AddDiagnostics(diagnostics);
+        //}
+        //else {
+        //    r.Errors.Add("No type symbol was found for shader class");
+        //}
+        //if (r.Failed) return r;
 
-        // Now try compiling the extension class with the input source
-        SyntaxTree outputSyntax = CSharpSyntaxTree.ParseText(r.Output!.CSharpSrc, parseOptions);
-        var compilationExt = CSharpCompilation.Create($"{shaderName}.ext")
-            .AddReferences(references)
-            .AddSyntaxTrees(inputSyntax, outputSyntax);
-        r.AddDiagnostics(compilationExt.GetSemanticModel(outputSyntax).GetDiagnostics());
+        //// Now try compiling the extension class with the input source
+        //SyntaxTree outputSyntax = CSharpSyntaxTree.ParseText(r.Output!.CSharpSrc, parseOptions);
+        //var compilationExt = CSharpCompilation.Create($"{shaderName}.ext")
+        //    .AddReferences(references)
+        //    .AddSyntaxTrees(inputSyntax, outputSyntax);
+        //r.AddDiagnostics(compilationExt.GetSemanticModel(outputSyntax).GetDiagnostics());
 
         return r;
     }
@@ -149,5 +158,7 @@ class ShaderTests {
 
 class ClassCollector : CSharpSyntaxWalker {
     public List<ClassDeclarationSyntax> classes = new();
-    public override void VisitClassDeclaration(ClassDeclarationSyntax node) => classes.Add(node);
+    public List<StructDeclarationSyntax> structs = new();
+    public override void VisitClassDeclaration(ClassDeclarationSyntax n) => classes.Add(n);
+    public override void VisitStructDeclaration(StructDeclarationSyntax n) => structs.Add(n);
 }

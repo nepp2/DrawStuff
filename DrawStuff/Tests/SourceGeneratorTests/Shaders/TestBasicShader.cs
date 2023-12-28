@@ -1,7 +1,9 @@
 ﻿
+using DrawStuff;
 using static DrawStuff.ShaderLanguage;
 
-public partial class BasicShader {
+[ShaderProgram]
+public partial class TestBasicShader {
 
     Mat4 transform;
 

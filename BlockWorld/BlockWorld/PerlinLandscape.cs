@@ -6,8 +6,6 @@ using System.Numerics;
 
 namespace BlockWorld;
 
-using BlockVertex = BlockShader.VertexData;
-
 public record struct BlockTextures(TCQuad Top, TCQuad Side, TCQuad Bottom);
 
 // Block face texture atlas

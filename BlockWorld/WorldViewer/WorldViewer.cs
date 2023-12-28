@@ -6,8 +6,6 @@ using Silk.NET.Input;
 using System.Drawing;
 using BlockWorld;
 
-using BlockVertex = BlockWorld.BlockShader.VertexData;
-
 IWindow CreateWindow() {
     var window = Window.Create(WindowOptions.Default with {
         Title = "Block World",

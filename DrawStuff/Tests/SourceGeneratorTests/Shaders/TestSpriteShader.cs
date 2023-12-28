@@ -1,24 +1,22 @@
 ﻿
-namespace DrawStuff;
-
+using DrawStuff;
 using System.Runtime.InteropServices;
 using static DrawStuff.ShaderLanguage;
 
 [StructLayout(LayoutKind.Sequential)]
-public record struct SpriteVertex(Vec2 pos, Vec2 tc, uint col);
+public record struct SpriteVertex(Vec4 Pos, Vec2 Tc, uint Col);
 
 [ShaderProgram]
-public partial class SpriteShader {
+partial class TestSpriteShader {
+
     Mat4 transform;
     Texture2D texture;
 
     public record struct FragInput(Vec4 Pos, Vec2 TexCoord, RGBA Tint);
 
-    RGBA ToColour(uint col) =>
-        vec4(col >> 24, (col >> 16) & 255u, (col >> 8) & 255u, col & 255u) / 255f;
-
     public FragInput Vertex(SpriteVertex v) {
-        return new(transform * vec4(v.pos, 0, 1), v.tc, ToColour(v.col));
+        var tint = vec4(v.Col >> 24, (v.Col >> 16) & 255u, (v.Col >> 8) & 255u, v.Col & 255u) / 255f; 
+        return new(transform * vec4(v.Pos.x, v.Pos.y, 0, 1), v.Tc, tint);
     }
 
     public RGBA Fragment(FragInput f) {

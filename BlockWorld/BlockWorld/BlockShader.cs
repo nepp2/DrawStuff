@@ -1,8 +1,12 @@
 ﻿
 using DrawStuff;
+using System.Runtime.InteropServices;
 using static DrawStuff.ShaderLanguage;
 
 namespace BlockWorld;
+
+[StructLayout(LayoutKind.Sequential)]
+public record struct BlockVertex(Vec3 Pos, Vec3 Normal, Vec2 Tc);
 
 // The shader used to the blocks
 [ShaderProgram]
@@ -13,9 +17,9 @@ public partial class BlockShader {
 
     public record struct FragInput(Vec4 Pos, Vec3 Normal, Vec2 Tc);
 
-    public FragInput Vertex(Vec3 pos, Vec3 normal, Vec2 tc) {
-        var tpos = transform * vec4(pos, 1f);
-        return new(vec4(tpos.xy, tpos.z * 0.1f, 1), normal, tc);
+    public FragInput Vertex(BlockVertex v) {
+        var tpos = transform * vec4(v.Pos, 1f);
+        return new(vec4(tpos.xy, tpos.z * 0.1f, 1), v.Normal, v.Tc);
     }
 
     public RGBA Fragment(FragInput v) {

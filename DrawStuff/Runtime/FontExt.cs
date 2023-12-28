@@ -3,11 +3,10 @@ namespace DrawStuff;
 
 using System.Drawing;
 using System.Numerics;
-using SpriteVert = SpriteShader.VertexData;
 
 public static class FontExt {
 
-    public static RectangleF AddText(this Geometry<SpriteVert> b, Vector2 pos, BakedFont font, string text) {
+    public static RectangleF AddText(this Geometry<SpriteVertex> b, Vector2 pos, BakedFont font, string text) {
         var (tw, th) = ((float)font.Texture.Width, (float)font.Texture.Height);
         var startPos = pos;
         var (maxX, maxY) = (pos.X, pos.Y);
@@ -24,7 +23,7 @@ public static class FontExt {
                     bounds.Height,
                     bounds.X / tw, bounds.Y / th, bounds.Width / tw, bounds.Height / th,
                     (xPos, yPos, xTex, yTex) =>
-                        new SpriteVert(new(xPos, yPos), new(xTex, yTex), Colour.White.RGBA));
+                        new SpriteVertex(new(xPos, yPos), new(xTex, yTex), Colour.White.RGBA));
                 var kerning = info.Kerning[i].Z;
                 pos += new Vector2(bounds.Width + kerning, 0);
                 maxX = MathF.Max(maxX, offset.X + bounds.Width);

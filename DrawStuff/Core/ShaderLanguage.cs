@@ -1,8 +1,10 @@
 ﻿
 using Silk.NET.Maths;
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
+using static DrawStuff.ShaderLanguage;
 
 namespace DrawStuff;
 
@@ -170,6 +172,7 @@ public interface ShaderLanguage {
     public static float max(float a, float b) => throw new NotImplementedException();
     public static float min(float a, float b) => throw new NotImplementedException();
 
+    [DoesNotReturn]
     public static Vec4 discard() => throw new NotImplementedException();
 
 }

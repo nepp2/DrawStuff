@@ -1,13 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
-using ShaderCompiler;
+
+namespace ShaderCompiler;
 
 #pragma warning disable RS1035 // Do not use banned APIs for analyzers
 #pragma warning disable RS2008 // Requires analyzer tracking files for new error codes
@@ -15,9 +15,22 @@ using ShaderCompiler;
 [Generator]
 public class ShaderGenerator : ISourceGenerator {
 
+    public List<Diagnostic> Errors = new();
+    public Dictionary<string, SourceText> ExtensionFiles = new();
+    public List<ShaderResult>? ShaderResultLog = null;
+    public TypeChecker Types;
+
+    public ShaderGenerator() {
+        Types = new(Errors);
+    }
+
+    public ShaderGenerator(List<ShaderResult> shaderResultLog) : this() {
+        ShaderResultLog = shaderResultLog;
+    }
+
     public void Initialize(GeneratorInitializationContext context) {
         // Register a syntax receiver that will be created for each generation pass
-        context.RegisterForSyntaxNotifications(() => new SyntaxReceiver());
+        context.RegisterForSyntaxNotifications(() => new SyntaxReceiver(this));
     }
 
     public void Execute(GeneratorExecutionContext context) {
@@ -26,10 +39,10 @@ public class ShaderGenerator : ISourceGenerator {
             if (!(context.SyntaxContextReceiver is SyntaxReceiver receiver))
                 return;
 
-            foreach (var e in receiver.Errors) {
+            foreach (var e in Errors) {
                 context.ReportDiagnostic(e);
             }
-            foreach (var entry in receiver.ClassExtensionFiles) {
+            foreach (var entry in ExtensionFiles) {
                 context.AddSource(entry.Key, entry.Value);
             }
         }
@@ -39,31 +52,39 @@ public class ShaderGenerator : ISourceGenerator {
         
     }
 
+    private void HandleClass(GeneratorSyntaxContext ctx, ClassDeclarationSyntax classDecl) {
+        if (ctx.SemanticModel.GetDeclaredSymbol(classDecl) is not ITypeSymbol sym)
+            return;
+        if (!sym.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "DrawStuff.ShaderProgramAttribute"))
+            return;
+        var def = new ShaderDefinition(sym, classDecl, ctx.SemanticModel);
+        if (ShaderAnalyze.ProcessShader(Errors, Types, def, out var shaderInfo)) {
+            var output = EmitSilkGL.GenerateClassExtension(Errors, Types, shaderInfo, ctx.SemanticModel);
+            if(ShaderResultLog != null)
+                ShaderResultLog.Add(output);
+            var filename = $"ShaderGen__{shaderInfo.Sym.Name}.g.cs";
+            ExtensionFiles[filename] = SourceText.From(output.CSharpSrc, Encoding.UTF8);
+        }
+    }
+
     // Created on demand before each generation pass
     class SyntaxReceiver : ISyntaxContextReceiver {
-        public List<Diagnostic> Errors = new();
+        ShaderGenerator Gen;
 
-        public Dictionary<string, SourceText> ClassExtensionFiles = new();
+        public SyntaxReceiver(ShaderGenerator gen) {
+            Gen = gen;
+        }
 
-        public void OnVisitSyntaxNode(GeneratorSyntaxContext context) {
-            if (context.Node is not ClassDeclarationSyntax c)
-                return;
-            if (context.SemanticModel.GetDeclaredSymbol(c) is not ITypeSymbol s)
-                return;
-            if (!s.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "DrawStuff.ShaderProgramAttribute"))
-                return;
+        public void OnVisitSyntaxNode(GeneratorSyntaxContext ctx) {
             try {
-                var classInfo = new ClassInfo(s, c, context.SemanticModel);
-                if(ShaderAnalyze.Process(Errors, classInfo, out var shaderInfo)) {
-                    var output = CodegenCSharp.GenerateClassExtension(Errors, shaderInfo, context.SemanticModel);
-                    var filename = $"ShaderGen__{shaderInfo.Sym.Name}.g.cs";
-                    ClassExtensionFiles[filename] = SourceText.From(output.CSharpSrc, Encoding.UTF8);
-                }
+                if (ctx.Node is ClassDeclarationSyntax c)
+                    Gen.HandleClass(ctx, c);
             }
-            catch (ShaderGenException e) {
+            catch (Exception e) {
                 var msg = $"Internal ShaderGen exception: {e.Message}";
-                Errors.Add(Diagnostic.Create(ShaderDiagnostic.InvalidShader, null, msg));
+                Gen.Errors.Add(Diagnostic.Create(ShaderDiagnostic.InvalidShader, null, msg));
             }
+
         }
     }
 }
